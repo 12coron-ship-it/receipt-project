@@ -50,7 +50,7 @@
           <button class="btn btn-secondary" id="manualInputBtn" style="width:100%;height:48px;"><i data-lucide="keyboard"></i> 手動で入力する</button>
         </div>
         <!-- Bulk Progress -->
-        <div class="glass-panel" id="bulkProgressContainer" style="display:none;padding:20px;">
+        <div class="glass-panel hidden" id="bulkProgressContainer" style="padding:20px;">
           <h4 style="margin-bottom:10px;font-family:var(--font-heading);font-size:15px;display:flex;align-items:center;gap:8px;">
             <div class="spinner" style="border-top-color:var(--primary);"></div>
             <span>レシートを一括解析中...</span>
@@ -61,14 +61,14 @@
           <div id="bulkProgressText" style="font-size:12px;color:var(--text-muted);">0 / 0 枚完了</div>
         </div>
         <!-- Scanner View -->
-        <div class="scanner-container glass-panel" id="scannerContainer" style="display:none;">
+        <div class="scanner-container glass-panel hidden" id="scannerContainer">
           <img id="scannedImage" class="scanner-image" src="" alt="Scanned Receipt">
           <div class="scan-overlay"></div>
           <div class="scan-line"></div>
           <div class="scanning-status" id="scanningStatus"><div class="spinner"></div><span>AIがレシートを読み取っています...</span></div>
         </div>
         <!-- Editor Panel -->
-        <div class="editor-panel glass-panel" id="editorPanel" style="display:none;">
+        <div class="editor-panel glass-panel hidden" id="editorPanel">
           <h3 class="panel-title" id="editorTitle"><i data-lucide="edit-3" style="color:var(--primary)"></i> 解析結果の確認・編集</h3>
           <div class="form-group-grid">
             <div class="form-group"><label for="receiptStore">店舗名/支出名</label><input type="text" id="receiptStore" placeholder="店舗名または用途を入力"></div>
@@ -136,7 +136,7 @@
         <div class="history-section">
           <h3 class="panel-title" style="border-bottom:none;margin-bottom:0;font-size:16px;display:flex;justify-content:space-between;align-items:center;">
             <span><i data-lucide="history" style="color:var(--text-muted);width:18px;height:18px;"></i> 最近の登録履歴</span>
-            <span class="filterActiveBadge" style="background:rgba(16,185,129,0.15);color:var(--accent);display:none;"></span>
+            <span class="filterActiveBadge hidden" style="background:rgba(16,185,129,0.15);color:var(--accent);"></span>
           </h3>
           <div class="historyList history-list">
             <div class="empty-state historyEmptyState">
@@ -246,7 +246,7 @@
 </div>
 
 <!-- MODAL 1: DAY DETAIL -->
-<div class="modal-overlay" id="dayDetailModal">
+<div class="modal-overlay hidden" id="dayDetailModal">
   <div class="modal-card" style="max-width:520px;">
     <div class="modal-header">
       <h3 class="modal-title" id="dayDetailTitle">支出内訳</h3>
@@ -264,7 +264,7 @@
 </div>
 
 <!-- MODAL 2: API KEY SETTINGS -->
-<div class="modal-overlay" id="settingsModal">
+<div class="modal-overlay hidden" id="settingsModal">
   <div class="modal-card">
     <div class="modal-header"><h3 class="modal-title">API設定</h3><button class="close-btn" id="closeSettingsBtn">&times;</button></div>
     <div class="form-group" style="margin-bottom:20px;">
@@ -280,7 +280,7 @@
 </div>
 
 <!-- MODAL 3: WEBRTC CAMERA OVERLAY -->
-<div class="camera-view-overlay" id="cameraViewOverlay">
+<div class="camera-view-overlay hidden" id="cameraViewOverlay">
   <div class="camera-header">
     <h3 style="font-family:var(--font-heading);font-size:16px;font-weight:600;display:flex;align-items:center;gap:8px;"><i data-lucide="camera" style="color:var(--accent);"></i> レシート連続撮影</h3>
     <button class="btn btn-secondary btn-icon" id="closeCameraBtn" style="color:white;border:none;font-size:20px;">&times;</button>

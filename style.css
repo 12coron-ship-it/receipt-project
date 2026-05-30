@@ -826,16 +826,10 @@ textarea {
   background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  display: none;
+  display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0;
   transition: opacity 0.25s ease;
-}
-
-.modal-overlay.active {
-  display: flex;
-  opacity: 1;
 }
 
 .modal-card {
@@ -1515,6 +1509,10 @@ textarea {
     opacity: 1;
     transform: translateX(0);
   }
+}
+
+.hidden {
+  display: none !important;
 }
 
 /* ----------------------------------------------------------
