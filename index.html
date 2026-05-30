@@ -74,39 +74,6 @@
           </div>
         </div>
 
-        <!-- Editor Panel (Subpanel) -->
-        <div class="editor-panel glass-panel" id="editorPanel">
-          <h3 class="panel-title" id="editorTitle"><i data-lucide="edit-3" style="color:var(--primary)"></i> 解析結果の確認・編集</h3>
-          <div class="form-group-grid">
-            <div class="form-group">
-              <label for="receiptStore">店舗名/支出名</label>
-              <input type="text" id="receiptStore" placeholder="店舗名または用途を入力">
-            </div>
-            <div class="form-group">
-              <label for="receiptDate">日付</label>
-              <input type="date" id="receiptDate">
-            </div>
-            <div class="form-group">
-              <label for="receiptTotal">合計金額 (¥)</label>
-              <input type="number" id="receiptTotal" placeholder="合計金額" readonly style="font-weight:700;color:var(--accent);">
-            </div>
-          </div>
-          <label class="form-section-label">品目内訳 (各商品ごとにカテゴリを設定できます)</label>
-          <div class="items-list-container">
-            <div class="items-header">
-              <div>品名</div>
-              <div>カテゴリ</div>
-              <div>価格 (¥)</div>
-              <div></div>
-            </div>
-            <div id="itemsList"></div>
-            <button class="btn btn-secondary btn-add-item" id="addItemBtn"><i data-lucide="plus"></i> 品目を追加</button>
-          </div>
-          <div class="editor-actions">
-            <button class="btn btn-secondary" id="cancelEditBtn">キャンセル</button>
-            <button class="btn btn-primary" id="saveReceiptBtn"><i data-lucide="check"></i> 家計簿に登録</button>
-          </div>
-        </div>
       </div>
 
       <!-- Right Column: Dashboard Statistics, Calendar & History -->
@@ -116,7 +83,10 @@
           <div class="month-nav-row">
             <div class="month-nav-controls">
               <button class="btn btn-secondary btn-icon prevMonthBtn" title="前月へ"><i data-lucide="chevron-left"></i></button>
-              <span class="currentMonthYearLabel">2026年05月</span>
+              <span class="currentMonthYearLabel-wrapper" style="position:relative; display:inline-flex; align-items:center; cursor:pointer;">
+                <span class="currentMonthYearLabel">2026年05月</span>
+                <input type="month" class="month-picker" style="position:absolute; inset:0; opacity:0; width:100%; cursor:pointer;">
+              </span>
               <button class="btn btn-secondary btn-icon nextMonthBtn" title="翌月へ"><i data-lucide="chevron-right"></i></button>
             </div>
             <div class="nav-sub-label">期間予算・固定費連動中</div>
@@ -203,7 +173,10 @@
         </div>
         <div class="month-nav-controls" id="analyticsMonthNav">
           <button class="btn btn-secondary btn-icon prevMonthBtn"><i data-lucide="chevron-left"></i></button>
-          <span class="currentMonthYearLabel">2026年05月</span>
+          <span class="currentMonthYearLabel-wrapper" style="position:relative; display:inline-flex; align-items:center; cursor:pointer;">
+            <span class="currentMonthYearLabel">2026年05月</span>
+            <input type="month" class="month-picker" style="position:absolute; inset:0; opacity:0; width:100%; cursor:pointer;">
+          </span>
           <button class="btn btn-secondary btn-icon nextMonthBtn"><i data-lucide="chevron-right"></i></button>
         </div>
       </div>
@@ -393,6 +366,50 @@
         <div class="shutter-btn-inner"></div>
       </div>
       <button class="btn btn-primary" id="processCapturedBtn" disabled><i data-lucide="check"></i> 完了 (0枚)</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL 4: EDITOR MODAL -->
+<div class="modal-overlay" id="editorPanel">
+  <div class="modal-card" style="max-width:600px;">
+    <div class="modal-header">
+      <h3 class="modal-title" id="editorTitle"><i data-lucide="edit-3" style="color:var(--primary)"></i> 解析結果の確認・編集</h3>
+      <button class="close-btn" id="closeEditorBtn">&times;</button>
+    </div>
+    <div class="form-group-grid">
+      <div class="form-group">
+        <label for="receiptStore">店舗名/支出名</label>
+        <input type="text" id="receiptStore" placeholder="店舗名または用途を入力">
+      </div>
+      <div class="form-group">
+        <label for="receiptDate">日付</label>
+        <input type="date" id="receiptDate">
+      </div>
+      <div class="form-group">
+        <label for="receiptTax">消費税・まとめ税金 (¥)</label>
+        <input type="number" id="receiptTax" placeholder="0" min="0">
+      </div>
+      <div class="form-group">
+        <label for="receiptTotal">合計金額 (¥)</label>
+        <input type="number" id="receiptTotal" placeholder="合計金額" readonly style="font-weight:700;color:var(--accent);">
+      </div>
+    </div>
+    <label class="form-section-label">品目内訳 (各商品ごとにカテゴリを設定できます)</label>
+    <div class="items-list-container">
+      <div class="items-header">
+        <div>品名</div>
+        <div>カテゴリ</div>
+        <div>単価 (¥)</div>
+        <div>割引 (¥)</div>
+        <div></div>
+      </div>
+      <div id="itemsList" style="max-height:220px; overflow-y:auto; padding-right:4px;"></div>
+      <button class="btn btn-secondary btn-add-item" id="addItemBtn"><i data-lucide="plus"></i> 品目を追加</button>
+    </div>
+    <div class="modal-footer" style="gap:12px;">
+      <button class="btn btn-secondary" id="cancelEditBtn">キャンセル</button>
+      <button class="btn btn-primary" id="saveReceiptBtn"><i data-lucide="check"></i> 家計簿に登録</button>
     </div>
   </div>
 </div>

@@ -260,6 +260,12 @@ function updateMonthLabel() {
     qsa('.currentMonthYearLabel').forEach(span => {
         span.textContent = labelText;
     });
+    
+    // Synchronize month picker values
+    const pickerValue = `${year}-${String(month).padStart(2, '0')}`;
+    qsa('.month-picker').forEach(input => {
+        input.value = pickerValue;
+    });
 }
 
 function refreshCurrentTabState() {
@@ -303,12 +309,45 @@ function buildRecurringCategorySelect() {
     });
 }
 
+function getTransactionItemsWithTax(t) {
+    let itemBaseSum = 0;
+    t.items.forEach(item => {
+        const netPrice = item.price - (item.discount || 0);
+        itemBaseSum += netPrice;
+    });
+    
+    const tax = t.tax || 0;
+    
+    return t.items.map(item => {
+        const netPrice = item.price - (item.discount || 0);
+        let distributedTax = 0;
+        if (itemBaseSum > 0) {
+            distributedTax = (netPrice / itemBaseSum) * tax;
+        } else if (t.items.length > 0) {
+            distributedTax = tax / t.items.length;
+        }
+        
+        return {
+            name: item.name,
+            price: Math.round(netPrice + distributedTax),
+            category: item.category || 'others'
+        };
+    });
+}
+
 // 12. Dynamic transaction resolved list (normal + recurring)
 function getMonthlyResolvedTransactions(year, month) {
     const targetMonthStr = `${year}-${String(month).padStart(2, '0')}`;
     
     // 1. Normal transactions matching this month
     const normalTxns = transactions.filter(t => t.date.startsWith(targetMonthStr));
+    
+    const resolvedNormal = normalTxns.map(t => {
+        return {
+            ...t,
+            items: getTransactionItemsWithTax(t)
+        };
+    });
     
     // 2. Inject recurring virtual transactions matching the target month range
     const virtualTxns = [];
@@ -329,7 +368,7 @@ function getMonthlyResolvedTransactions(year, month) {
         }
     });
     
-    return [...normalTxns, ...virtualTxns];
+    return [...resolvedNormal, ...virtualTxns];
 }
 
 // Find budget covering target month
@@ -688,12 +727,13 @@ window.editTransactionItem = function(id) {
     
     if (el('receiptStore')) el('receiptStore').value = txn.storeName;
     if (el('receiptDate')) el('receiptDate').value = txn.date;
+    if (el('receiptTax')) el('receiptTax').value = txn.tax || 0;
     if (el('receiptTotal')) el('receiptTotal').value = txn.total;
     
     const list = el('itemsList');
     if (list) {
         list.innerHTML = '';
-        txn.items.forEach(item => addEditorItemRow(item.name, item.price, item.category));
+        txn.items.forEach(item => addEditorItemRow(item.name, item.price, item.discount || 0, item.category));
     }
     
     closeModal('dayDetailModal');
@@ -723,12 +763,13 @@ function startManualInputForm() {
     
     if (el('receiptStore')) el('receiptStore').value = '';
     if (el('receiptDate')) el('receiptDate').value = new Date().toISOString().split('T')[0];
+    if (el('receiptTax')) el('receiptTax').value = '0';
     if (el('receiptTotal')) el('receiptTotal').value = '0';
     
     const list = el('itemsList');
     if (list) {
         list.innerHTML = '';
-        addEditorItemRow('', 0, 'others');
+        addEditorItemRow('', 0, 0, 'others');
     }
     
     setTimeout(() => {
@@ -742,7 +783,7 @@ function cancelEditor() {
     if (el('fileInput')) el('fileInput').value = '';
 }
 
-function addEditorItemRow(name = '', price = 0, category = 'others') {
+function addEditorItemRow(name = '', price = 0, discount = 0, category = 'others') {
     const container = el('itemsList');
     if (!container) return;
     
@@ -757,12 +798,14 @@ function addEditorItemRow(name = '', price = 0, category = 'others') {
     row.innerHTML = `
         <input type="text" class="item-name" placeholder="品名" value="${name}">
         <select class="item-category">${selectOptions}</select>
-        <input type="number" class="item-price" placeholder="価格" value="${price}" min="0">
+        <input type="number" class="item-price" placeholder="単価" value="${price}" min="0">
+        <input type="number" class="item-discount" placeholder="割引" value="${discount}" min="0">
         <button class="btn-icon" style="color:var(--text-muted);" title="削除"><i data-lucide="trash-2"></i></button>
     `;
     
     // Bind auto calculations
     row.querySelector('.item-price').addEventListener('input', calculateTotalFromItems);
+    row.querySelector('.item-discount').addEventListener('input', calculateTotalFromItems);
     row.querySelector('button').addEventListener('click', () => {
         row.remove();
         calculateTotalFromItems();
@@ -775,15 +818,22 @@ function addEditorItemRow(name = '', price = 0, category = 'others') {
 
 function calculateTotalFromItems() {
     let sum = 0;
-    qsa('.item-price').forEach(input => {
-        sum += parseInt(input.value) || 0;
+    qsa('.item-row').forEach(row => {
+        const price = parseInt(row.querySelector('.item-price').value) || 0;
+        const discount = parseInt(row.querySelector('.item-discount').value) || 0;
+        sum += Math.max(0, price - discount);
     });
+    
+    const tax = parseInt(el('receiptTax').value) || 0;
+    sum += tax;
+    
     if (el('receiptTotal')) el('receiptTotal').value = sum;
 }
 
 function saveCurrentTransaction() {
     const store = el('receiptStore').value.trim();
     const dateStr = el('receiptDate').value;
+    const taxVal = parseInt(el('receiptTax').value) || 0;
     const totalVal = parseInt(el('receiptTotal').value) || 0;
     
     if (!dateStr || totalVal <= 0) {
@@ -797,18 +847,20 @@ function saveCurrentTransaction() {
         const name = row.querySelector('.item-name').value.trim();
         const category = row.querySelector('.item-category').value;
         const price = parseInt(row.querySelector('.item-price').value) || 0;
+        const discount = parseInt(row.querySelector('.item-discount').value) || 0;
         
         if (name || price > 0) {
             items.push({
                 name: name || '品目明細',
                 category: category || 'others',
-                price: price
+                price: price,
+                discount: discount
             });
         }
     });
     
     if (items.length === 0) {
-        items.push({ name: 'まとめ支出', category: 'others', price: totalVal });
+        items.push({ name: 'まとめ支出', category: 'others', price: totalVal - taxVal, discount: 0 });
     }
     
     if (editingTransactionId) {
@@ -818,6 +870,7 @@ function saveCurrentTransaction() {
                 ...transactions[index],
                 storeName: store || '不明な店舗',
                 date: dateStr,
+                tax: taxVal,
                 total: totalVal,
                 items: items
             };
@@ -828,6 +881,7 @@ function saveCurrentTransaction() {
             id: 'txn-' + Date.now().toString(),
             storeName: store || '不明な店舗',
             date: dateStr,
+            tax: taxVal,
             total: totalVal,
             items: items
         });
@@ -868,15 +922,16 @@ async function processSingleReceipt(file) {
         if (el('editorTitle')) el('editorTitle').innerHTML = '<i data-lucide="edit-3" style="color:var(--primary)"></i> 解析結果の確認';
         if (el('receiptStore')) el('receiptStore').value = res.storeName || '';
         if (el('receiptDate')) el('receiptDate').value = res.date || new Date().toISOString().split('T')[0];
+        if (el('receiptTax')) el('receiptTax').value = res.tax || 0;
         if (el('receiptTotal')) el('receiptTotal').value = res.total || 0;
         
         const list = el('itemsList');
         if (list) {
             list.innerHTML = '';
             if (res.items && res.items.length) {
-                res.items.forEach(item => addEditorItemRow(item.name, item.price, item.category));
+                res.items.forEach(item => addEditorItemRow(item.name, item.price, item.discount || 0, item.category));
             } else {
-                addEditorItemRow('レシート品目', res.total || 0, 'others');
+                addEditorItemRow('レシート品目', res.total - (res.tax || 0), 0, 'others');
             }
         }
     } catch (err) {
@@ -950,6 +1005,7 @@ async function callScanApi(base64Data, mimeType) {
         properties: {
             storeName: { type: "STRING" },
             date: { type: "STRING", description: "YYYY-MM-DD format" },
+            tax: { type: "INTEGER", description: "Receipt-wide tax if computed collectively at the end, otherwise 0" },
             total: { type: "INTEGER" },
             items: {
                 type: "ARRAY",
@@ -957,14 +1013,15 @@ async function callScanApi(base64Data, mimeType) {
                     type: "OBJECT",
                     properties: {
                         name: { type: "STRING" },
-                        price: { type: "INTEGER" },
+                        price: { type: "INTEGER", description: "Base unit price of the item before discount" },
+                        discount: { type: "INTEGER", description: "Discount amount for this item if applicable, otherwise 0" },
                         category: { type: "STRING", description: "Must be: food, dining, luxuries, shopping, clothing, furniture, utilities, mortgage, insurance, medical, education, transport, social, entertainment, special, or others" }
                     },
-                    required: ["name", "price", "category"]
+                    required: ["name", "price", "discount", "category"]
                 }
             }
         },
-        required: ["storeName", "date", "total", "items"]
+        required: ["storeName", "date", "tax", "total", "items"]
     };
     
     try {
@@ -975,7 +1032,24 @@ async function callScanApi(base64Data, mimeType) {
                 contents: [{
                     parts: [
                         { inlineData: { mimeType: mimeType || 'image/jpeg', data: base64Data } },
-                        { text: "Extract receipt details. Strictly map each line item into appropriate categories." }
+                        { text: "Extract receipt details. Analyze items and map each item to the appropriate category from the schema.\n\n" +
+                                "Category definitions:\n" +
+                                "- luxuries (嗜好品): Alcoholic beverages (beer, wine, sake, whiskey), cigarettes, sweets (candies, cakes, ice cream, chocolate, donuts), snacks, potato chips, desserts, and non-essential drinks/items.\n" +
+                                "- food (食費): Basic groceries, raw cooking ingredients (meat, fish, vegetables), bread, milk, eggs, tofu, seasonings, and daily cooking items.\n" +
+                                "- dining (外食費): Restaurant bills, cafe drinks/food, fast food, takeout lunches, food court, and dining out.\n" +
+                                "- shopping (日用品・買い物): Toilet paper, tissues, laundry detergent, shampoo, cosmetics, stationeries, trash bags, kitchen goods.\n" +
+                                "- transport (交通費): Train tickets, IC cards top-up, bus, taxi, parking fees.\n" +
+                                "- medical (医療費): Medicines, hospital checkups, clinic fees, masks, vitamins.\n" +
+                                "- clothing (衣服): Apparel, shoes, accessories.\n" +
+                                "- furniture (家具・家電): Furniture, home electronics, light bulbs.\n" +
+                                "- utilities (水道光熱・通信): Electricity, gas, water, internet, phone bills.\n" +
+                                "- mortgage (住宅ローン・家賃): Rent, housing loan.\n" +
+                                "- insurance (保険料): Life, health, or car insurance.\n" +
+                                "- education (教育): Textbooks, tutoring, school supplies.\n" +
+                                "- social (交際費): Gifts, dinner with friends/co-workers, social gather expenses.\n" +
+                                "- entertainment (娯楽・趣味): Movies, games, toys, hobbies, travel, concert tickets.\n" +
+                                "- special (特別費): Taxes, large yearly insurance, car purchases.\n" +
+                                "- others (その他): Anything else that does not fit the definitions above." }
                     ]
                 }],
                 generationConfig: {
@@ -1001,6 +1075,22 @@ async function callScanApi(base64Data, mimeType) {
 
 function getMockDataResponse() {
     const mock = JSON.parse(JSON.stringify(mockReceipts[Math.floor(Math.random() * mockReceipts.length)]));
+    
+    // Add random tax and discounts sometimes
+    mock.tax = Math.random() > 0.5 ? Math.floor(mock.total * 0.08) : 0;
+    
+    let baseSum = 0;
+    mock.items = mock.items.map(item => {
+        const discount = Math.random() > 0.6 ? 50 : 0;
+        baseSum += (item.price - discount);
+        return {
+            ...item,
+            discount: discount
+        };
+    });
+    
+    mock.total = baseSum + mock.tax;
+    
     const randomDaysAgo = Math.floor(Math.random() * 8);
     const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15);
     date.setDate(date.getDate() - randomDaysAgo);
@@ -1111,12 +1201,13 @@ async function processCapturedBatches() {
             if (el('editorTitle')) el('editorTitle').innerHTML = '<i data-lucide="edit-3" style="color:var(--primary)"></i> 撮影結果の確認';
             if (el('receiptStore')) el('receiptStore').value = res.storeName || '';
             if (el('receiptDate')) el('receiptDate').value = res.date || new Date().toISOString().split('T')[0];
+            if (el('receiptTax')) el('receiptTax').value = res.tax || 0;
             if (el('receiptTotal')) el('receiptTotal').value = res.total || 0;
             
             const list = el('itemsList');
             if (list) {
                 list.innerHTML = '';
-                res.items.forEach(item => addEditorItemRow(item.name, item.price, item.category));
+                res.items.forEach(item => addEditorItemRow(item.name, item.price, item.discount || 0, item.category));
             }
         } catch (e) {
             showDashboardSubpanel('dropzone');
@@ -1697,14 +1788,14 @@ function exportCSV() {
     
     // Add UTF-8 BOM to prevent Japanese Mojibake in Excel
     let csvContent = '\uFEFF';
-    csvContent += "ID,店舗名,日付,品目名,カテゴリ,価格\n";
+    csvContent += "ID,店舗名,日付,税金,品目名,カテゴリ,単価,割引\n";
     
     transactions.forEach(t => {
         t.items.forEach(item => {
             const catLabel = categoryMeta[item.category]?.label || 'その他';
             const escapedStore = t.storeName.replace(/"/g, '""');
             const escapedItem = item.name.replace(/"/g, '""');
-            csvContent += `${t.id},"${escapedStore}",${t.date},"${escapedItem}",${catLabel},${item.price}\n`;
+            csvContent += `${t.id},"${escapedStore}",${t.date},${t.tax || 0},"${escapedItem}",${catLabel},${item.price},${item.discount || 0}\n`;
         });
     });
     
@@ -1757,14 +1848,16 @@ function importCSV(e) {
                 }
                 cols.push(colVal);
                 
-                if (cols.length < 6) continue;
+                if (cols.length < 8) continue;
                 
                 const id = cols[0].trim();
                 const store = cols[1].trim();
                 const date = cols[2].trim();
-                const itemName = cols[3].trim();
-                const categoryLabel = cols[4].trim();
-                const price = parseInt(cols[5].trim()) || 0;
+                const tax = parseInt(cols[3].trim()) || 0;
+                const itemName = cols[4].trim();
+                const categoryLabel = cols[5].trim();
+                const price = parseInt(cols[6].trim()) || 0;
+                const discount = parseInt(cols[7].trim()) || 0;
                 
                 const catKey = labelMap[categoryLabel] || 'others';
                 
@@ -1773,13 +1866,19 @@ function importCSV(e) {
                         id: id,
                         storeName: store,
                         date: date,
+                        tax: tax,
                         total: 0,
                         items: []
                     };
                 }
-                imported[id].items.push({ name: itemName, category: catKey, price: price });
-                imported[id].total += price;
+                imported[id].items.push({ name: itemName, category: catKey, price: price, discount: discount });
+                imported[id].total += Math.max(0, price - discount);
             }
+            
+            // Post-process imported totals to include tax
+            Object.values(imported).forEach(newTxn => {
+                newTxn.total += newTxn.tax || 0;
+            });
             
             // Merge into transactions
             Object.values(imported).forEach(newTxn => {
@@ -1856,9 +1955,10 @@ function setupEventListeners() {
     if (el('startCameraBtn')) el('startCameraBtn').addEventListener('click', startContinuousCamera);
     
     // 5. Editor Buttons
-    if (el('addItemBtn')) el('addItemBtn').addEventListener('click', () => addEditorItemRow('', 0, 'others'));
+    if (el('addItemBtn')) el('addItemBtn').addEventListener('click', () => addEditorItemRow('', 0, 0, 'others'));
     if (el('cancelEditBtn')) el('cancelEditBtn').addEventListener('click', cancelEditor);
     if (el('saveReceiptBtn')) el('saveReceiptBtn').addEventListener('click', saveCurrentTransaction);
+    if (el('receiptTax')) el('receiptTax').addEventListener('input', calculateTotalFromItems);
     
     // 6. Camera Overlay controls
     if (el('closeCameraBtn')) el('closeCameraBtn').addEventListener('click', stopContinuousCamera);
@@ -1886,4 +1986,20 @@ function setupEventListeners() {
             updateAnalyticsView();
         });
     });
+
+    // 11. Month Picker Event Handlers (Native Month Select wheel)
+    qsa('.month-picker').forEach(picker => {
+        picker.addEventListener('change', (e) => {
+            const val = e.target.value;
+            if (val) {
+                const [y, m] = val.split('-');
+                currentMonth = new Date(parseInt(y), parseInt(m) - 1, 1);
+                activeFilterDate = null;
+                refreshCurrentTabState();
+            }
+        });
+    });
+
+    // 12. Editor Modal Close Buttons
+    if (el('closeEditorBtn')) el('closeEditorBtn').addEventListener('click', cancelEditor);
 }

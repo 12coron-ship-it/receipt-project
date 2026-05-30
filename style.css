@@ -188,14 +188,12 @@ header {
 /* Dashboard subpanel display styling */
 #dropzone,
 #scannerContainer,
-#editorPanel,
 #bulkProgressContainer {
   display: none;
 }
 
 #dropzone.active,
 #scannerContainer.active,
-#editorPanel.active,
 #bulkProgressContainer.active {
   display: block;
 }
@@ -385,7 +383,7 @@ header {
 
 .form-group-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
   margin-bottom: 20px;
 }
@@ -449,7 +447,7 @@ select {
 
 .items-header {
   display: grid;
-  grid-template-columns: 3.5fr 3fr 2.5fr 40px;
+  grid-template-columns: 3.5fr 2.5fr 2fr 2fr 36px;
   gap: 10px;
   padding: 8px 10px;
   font-size: 0.74rem;
@@ -460,7 +458,7 @@ select {
 
 .item-row {
   display: grid;
-  grid-template-columns: 3.5fr 3fr 2.5fr 40px;
+  grid-template-columns: 3.5fr 2.5fr 2fr 2fr 36px;
   gap: 10px;
   align-items: center;
   padding: 8px 10px;
@@ -1439,6 +1437,7 @@ select {
   align-items: center;
   justify-content: center;
   padding: 16px;
+  overflow-y: auto;
 }
 
 .modal-overlay.active {
@@ -1456,6 +1455,7 @@ select {
   box-shadow: 0 20px 50px rgba(0,0,0,0.6);
   transform: translateY(20px);
   animation: fadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  margin: auto;
 }
 
 .modal-header {
@@ -1856,11 +1856,15 @@ select {
     grid-column: 1 / span 2;
   }
   
+  .item-row .item-category {
+    grid-column: 1 / span 2;
+  }
+
   .item-row .item-price {
     grid-column: 1;
   }
 
-  .item-row .item-category {
+  .item-row .item-discount {
     grid-column: 2;
   }
   
