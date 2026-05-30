@@ -1254,3 +1254,70 @@ input:focus, select:focus, textarea:focus {
     from { transform: translateX(120%); opacity: 0; }
     to { transform: translateX(0); opacity: 1; }
 }
+
+/* ================= MOBILE OPTIMIZATION & ADDITIONAL COMPONENT STYLES ================= */
+.dashboard-category-budget-row {
+    background: rgba(11, 15, 25, 0.25);
+    border: 1px solid var(--card-border);
+    padding: 10px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.dashboard-category-budget-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    align-items: center;
+}
+
+@media (max-width: 600px) {
+    header {
+        flex-direction: column;
+        gap: 12px;
+        align-items: center;
+        padding: 15px 0;
+    }
+    header > div:last-child {
+        width: 100%;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px !important;
+    }
+    .btn {
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+    .nav-tabs {
+        gap: 12px;
+        justify-content: space-around;
+        margin: 15px 0 20px 0;
+    }
+    .nav-tab {
+        font-size: 14px;
+        padding: 6px 2px 8px 2px;
+    }
+    .logo {
+        font-size: 24px;
+    }
+    .api-key-badge {
+        font-size: 10px;
+        padding: 3px 6px;
+    }
+    
+    /* Items Table Mobile layout */
+    .items-header {
+        display: none;
+    }
+    .item-row {
+        grid-template-columns: 1fr 1fr 40px;
+        grid-template-rows: auto auto;
+        gap: 8px;
+        padding: 12px 10px;
+    }
+    .item-row .item-name {
+        grid-column: span 3;
+    }
+}

@@ -4,7 +4,7 @@ let budgets = [];
 let recurringExpenses = []; // Holds subscription/fixed cost items
 
 let categoryCharts = []; // Holds category doughnut charts (dashboard and analytics)
-let dailyTrendChart = null; // Holds daily spending trend (Line or Bar chart on Analytics)
+let dailyTrendChartInstance = null; // Holds daily spending trend (Line or Bar chart on Analytics)
 
 let currentScannedData = null;
 let editingTransactionId = null; // ID of transaction being edited
@@ -334,18 +334,28 @@ function loadBudgets() {
 
 // Save Budget Period Config
 function saveBudgetPeriod() {
-    const start = budgetStartDate.value;
-    const end = budgetEndDate.value;
+    const startMonthVal = budgetStartDate.value;
+    const endMonthVal = budgetEndDate.value;
     
-    if (!start || !end) {
-        showToast('開始日と終了日を選択してください。', 'error');
+    if (!startMonthVal || !endMonthVal) {
+        showToast('開始月と終了月を選択してください。', 'error');
         return;
     }
     
-    if (start > end) {
-        showToast('開始日は終了日以前の日付を入力してください。', 'error');
+    if (startMonthVal > endMonthVal) {
+        showToast('開始月は終了月以前の月を入力してください。', 'error');
         return;
     }
+
+    // Convert start month to YYYY-MM-01
+    const start = `${startMonthVal}-01`;
+    
+    // Convert end month to YYYY-MM-[last day]
+    const parts = endMonthVal.split('-');
+    const year = parseInt(parts[0]);
+    const month = parseInt(parts[1]);
+    const lastDay = new Date(year, month, 0).getDate();
+    const end = `${endMonthVal}-${String(lastDay).padStart(2, '0')}`;
 
     // Read all input values dynamically
     const categories = {};
@@ -398,8 +408,8 @@ function editBudgetPeriod(id) {
     if (!b) return;
 
     editingBudgetPeriodId = id;
-    budgetStartDate.value = b.startDate;
-    budgetEndDate.value = b.endDate;
+    budgetStartDate.value = b.startDate.substring(0, 7);
+    budgetEndDate.value = b.endDate.substring(0, 7);
     
     // Fill inputs dynamically
     const inputs = budgetInputsContainer.querySelectorAll('.budget-cat-input');
@@ -436,13 +446,16 @@ function renderBudgetsList() {
 
     budgets.forEach(b => {
         const sum = Object.values(b.categories).reduce((acc, curr) => acc + curr, 0);
+        const startLabel = b.startDate.substring(0, 7).replace('-', '年') + '月';
+        const endLabel = b.endDate.substring(0, 7).replace('-', '年') + '月';
+        
         const card = document.createElement('div');
         card.className = 'glass-panel budget-period-card';
         card.innerHTML = `
             <div class="budget-period-header">
                 <div class="budget-period-dates">
                     <i data-lucide="calendar-range" style="color: var(--primary); width:18px;"></i>
-                    <span>${b.startDate} 〜 ${b.endDate}</span>
+                    <span>${startLabel} 〜 ${endLabel}</span>
                 </div>
                 <div>
                     <button class="btn btn-icon edit-budget-btn" data-id="${b.id}" title="編集">
@@ -757,6 +770,10 @@ function setupEventListeners() {
 function startManualInput() {
     resetScannerState();
     
+    // スキャンエリアを非表示にし、エディタのみを表示する
+    dropzone.style.display = 'none';
+    scannerContainer.style.display = 'none';
+    
     editingTransactionId = null;
     
     // Blank model
@@ -770,7 +787,10 @@ function startManualInput() {
     populateEditor(blankData);
     
     // Set focus
-    setTimeout(() => receiptStore.focus(), 100);
+    setTimeout(() => {
+        receiptStore.focus();
+        editorPanel.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
 }
 
 // Day Detail Modal Popover
@@ -1629,6 +1649,93 @@ function updateOverallBudgetBars(monthlyTotalSum, overallBudget) {
             bar.classList.remove('over-budget');
         }
     });
+
+    // --- CATEGORY BUDGETS LIST RENDERING ---
+    const catBudgetsContainer = document.getElementById('dashboardCategoryBudgets');
+    if (catBudgetsContainer) {
+        catBudgetsContainer.innerHTML = '';
+        
+        const activeBudgetCats = getActiveBudgetForMonth(currentMonth);
+        const year = currentMonth.getFullYear();
+        const month = currentMonth.getMonth();
+        const monthlyTxns = getMonthlyResolvedTransactions(year, month);
+        
+        const catSpends = {};
+        Object.keys(categoryMeta).forEach(k => catSpends[k] = 0);
+        
+        monthlyTxns.forEach(t => {
+            t.items.forEach(item => {
+                const cat = item.category || 'others';
+                if (catSpends.hasOwnProperty(cat)) {
+                    catSpends[cat] += item.price;
+                } else {
+                    catSpends.others += item.price;
+                }
+            });
+        });
+        
+        let hasAnyBudgetDisplay = false;
+        Object.keys(categoryMeta).forEach(catKey => {
+            const budgetAmt = activeBudgetCats[catKey] || 0;
+            const spendAmt = catSpends[catKey] || 0;
+            
+            // Only render categories that either have a budget set or have recorded spending this month
+            if (budgetAmt > 0 || spendAmt > 0) {
+                hasAnyBudgetDisplay = true;
+                const meta = categoryMeta[catKey] || categoryMeta.others;
+                const catPercent = budgetAmt > 0 ? (spendAmt / budgetAmt) * 100 : 0;
+                const catRemaining = budgetAmt - spendAmt;
+                
+                let progressColor = 'background: var(--primary);';
+                if (catPercent > 100) {
+                    progressColor = 'background: linear-gradient(90deg, var(--danger) 0%, #F59E0B 100%);';
+                } else if (catPercent > 80) {
+                    progressColor = 'background: #F59E0B;';
+                }
+                
+                const row = document.createElement('div');
+                row.className = 'dashboard-category-budget-row';
+                
+                let budgetText = '';
+                let remainingText = '';
+                if (budgetAmt > 0) {
+                    budgetText = `(¥${spendAmt.toLocaleString()} / ¥${budgetAmt.toLocaleString()})`;
+                    if (catRemaining >= 0) {
+                        remainingText = `残: ¥${catRemaining.toLocaleString()}`;
+                    } else {
+                        remainingText = `超過: ¥${Math.abs(catRemaining).toLocaleString()}`;
+                    }
+                } else {
+                    budgetText = `(¥${spendAmt.toLocaleString()} / 未設定)`;
+                    remainingText = `予算なし`;
+                }
+                
+                row.innerHTML = `
+                    <div class="dashboard-category-budget-info">
+                        <span class="badge ${meta.class}" style="font-size: 10px;">${meta.label}</span>
+                        <span style="color: var(--text-muted); font-size:10px;">${Math.round(catPercent)}% ${budgetText}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                        <div class="progress-bar-container" style="flex-grow: 1; height: 6px; background: rgba(255,255,255,0.05); margin-bottom: 0;">
+                            <div class="progress-bar-fill" style="height: 100%; width: ${Math.min(100, catPercent)}%; ${progressColor}"></div>
+                        </div>
+                        <span style="font-size: 10px; font-weight: 600; color: ${catRemaining < 0 ? 'var(--danger)' : 'var(--text-muted)'}; min-width: 80px; text-align: right;">
+                            ${remainingText}
+                        </span>
+                    </div>
+                `;
+                catBudgetsContainer.appendChild(row);
+            }
+        });
+
+        if (!hasAnyBudgetDisplay) {
+            catBudgetsContainer.innerHTML = `
+                <div style="text-align: center; color: var(--text-muted); font-size: 11px; padding: 10px 0;">
+                    今月の項目別予算・支出はまだありません。
+                </div>
+            `;
+        }
+    }
 }
 
 // Dynamically generate calendar grid cells
@@ -1704,8 +1811,6 @@ function renderCalendarGrid(monthlyTxns) {
         calendarGrid.appendChild(dayCell);
     }
 }
-
-// Update the Detail Analytics page (Supports Monthly, Quarterly, and Yearly aggregates)
 function updateAnalyticsView() {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
@@ -1715,10 +1820,13 @@ function updateAnalyticsView() {
 
     let resolvedTxns = [];
     let chartLabels = [];
-    let chartData = [];
-    let chartType = 'line';
     
-    // Resolve overall budgets sum
+    // 16 categories aggregate data storage
+    const categoryValues = {};
+    Object.keys(categoryMeta).forEach(k => {
+        categoryValues[k] = [];
+    });
+    
     let activeBudgetCats = {};
     
     if (analyticsPeriod === 'month') {
@@ -1727,27 +1835,33 @@ function updateAnalyticsView() {
         activeBudgetCats = getActiveBudgetForMonth(currentMonth);
 
         const lastDay = new Date(year, month + 1, 0).getDate();
-        chartData = Array(lastDay).fill(0);
+        chartLabels = Array.from({ length: lastDay }, (_, i) => `${i + 1}日`);
+        
+        // Initialize values array for each category (size = days in month)
+        Object.keys(categoryMeta).forEach(k => {
+            categoryValues[k] = Array(lastDay).fill(0);
+        });
+        
         resolvedTxns.forEach(t => {
             const dateObj = new Date(t.date);
             const dateIndex = dateObj.getDate() - 1;
             if (dateIndex >= 0 && dateIndex < lastDay) {
-                chartData[dateIndex] += t.total;
+                t.items.forEach(item => {
+                    const cat = item.category || 'others';
+                    const targetCat = categoryValues.hasOwnProperty(cat) ? cat : 'others';
+                    categoryValues[targetCat][dateIndex] += item.price;
+                });
             }
         });
-        chartLabels = Array.from({ length: lastDay }, (_, i) => `${i + 1}日`);
         
-        trendChartTitle.innerText = "日別支出の推移";
-        trendChartIcon.setAttribute('data-lucide', 'trending-up');
-        chartType = 'line';
+        trendChartTitle.innerText = "日別支出の内訳 (カテゴリ別積み上げ)";
+        if (trendChartIcon) trendChartIcon.setAttribute('data-lucide', 'bar-chart-3');
     } 
     else if (analyticsPeriod === 'quarter') {
         // --- QUARTERLY AGGREGATE ---
-        // Find Q1 (0-2), Q2 (3-5), Q3 (6-8), Q4 (9-11) based on active month
         const currentQuarter = Math.floor(month / 3); // 0, 1, 2, 3
         const quarterMonths = [currentQuarter * 3, currentQuarter * 3 + 1, currentQuarter * 3 + 2];
         
-        // Sum expenses and budgets across the 3 months
         quarterMonths.forEach(m => {
             const monthlyList = getMonthlyResolvedTransactions(year, m);
             resolvedTxns = resolvedTxns.concat(monthlyList);
@@ -1758,25 +1872,32 @@ function updateAnalyticsView() {
             });
         });
 
-        // Generate data for 4 quarters to display comparison
-        const qSums = Array(4).fill(0);
+        chartLabels = ["第1四半期 (1-3月)", "第2四半期 (4-6月)", "第3四半期 (7-9月)", "第4四半期 (10-12月)"];
+        
+        // Initialize values array for each category (size = 4 quarters)
+        Object.keys(categoryMeta).forEach(k => {
+            categoryValues[k] = Array(4).fill(0);
+        });
+        
         for (let q = 0; q < 4; q++) {
             const qMonths = [q * 3, q * 3 + 1, q * 3 + 2];
             qMonths.forEach(m => {
                 const list = getMonthlyResolvedTransactions(year, m);
-                qSums[q] += list.reduce((acc, curr) => acc + curr.total, 0);
+                list.forEach(t => {
+                    t.items.forEach(item => {
+                        const cat = item.category || 'others';
+                        const targetCat = categoryValues.hasOwnProperty(cat) ? cat : 'others';
+                        categoryValues[targetCat][q] += item.price;
+                    });
+                });
             });
         }
-        chartData = qSums;
-        chartLabels = ["第1四半期 (1-3月)", "第2四半期 (4-6月)", "第3四半期 (7-9月)", "第4四半期 (10-12月)"];
         
-        trendChartTitle.innerText = `${year}年 四半期別の支出比較`;
-        trendChartIcon.setAttribute('data-lucide', 'bar-chart-2');
-        chartType = 'bar';
+        trendChartTitle.innerText = `${year}年 四半期別の支出内訳 (カテゴリ別積み上げ)`;
+        if (trendChartIcon) trendChartIcon.setAttribute('data-lucide', 'bar-chart-2');
     } 
     else if (analyticsPeriod === 'year') {
         // --- YEARLY AGGREGATE ---
-        // Sum all 12 months
         for (let m = 0; m < 12; m++) {
             const monthlyList = getMonthlyResolvedTransactions(year, m);
             resolvedTxns = resolvedTxns.concat(monthlyList);
@@ -1787,59 +1908,92 @@ function updateAnalyticsView() {
             });
         }
 
-        // Plot monthly spend of the whole year
-        chartData = Array(12).fill(0);
-        for (let m = 0; m < 12; m++) {
-            const list = getMonthlyResolvedTransactions(year, m);
-            chartData[m] = list.reduce((acc, curr) => acc + curr.total, 0);
-        }
         chartLabels = Array.from({ length: 12 }, (_, i) => `${i + 1}月`);
         
-        trendChartTitle.innerText = `${year}年 月別支出の推移`;
-        trendChartIcon.setAttribute('data-lucide', 'calendar');
-        chartType = 'line';
+        // Initialize values array for each category (size = 12 months)
+        Object.keys(categoryMeta).forEach(k => {
+            categoryValues[k] = Array(12).fill(0);
+        });
+        
+        for (let m = 0; m < 12; m++) {
+            const list = getMonthlyResolvedTransactions(year, m);
+            list.forEach(t => {
+                t.items.forEach(item => {
+                    const cat = item.category || 'others';
+                    const targetCat = categoryValues.hasOwnProperty(cat) ? cat : 'others';
+                    categoryValues[targetCat][m] += item.price;
+                });
+            });
+        }
+        
+        trendChartTitle.innerText = `${year}年 月別支出の内訳 (カテゴリ別積み上げ)`;
+        if (trendChartIcon) trendChartIcon.setAttribute('data-lucide', 'calendar');
     }
 
-    // 1. Draw/Update Chart.js instance (Destroying if type changed)
+    // Build Chart datasets representing 16 categories stacked bar
+    const datasets = Object.keys(categoryMeta).map(key => {
+        const meta = categoryMeta[key];
+        return {
+            label: meta.label,
+            data: categoryValues[key],
+            backgroundColor: meta.color,
+            borderColor: meta.color,
+            borderWidth: 1,
+            stack: 'Stack0'
+        };
+    });
+
+    // 1. Draw/Update Chart.js instance (Always type: 'bar' for stacked comparison)
     const ctx = document.getElementById('dailyTrendChart').getContext('2d');
     
-    if (dailyTrendChart) {
-        // If type changed, we MUST destroy and recreate the chart object
-        if (dailyTrendChart.config.type !== chartType) {
-            dailyTrendChart.destroy();
-            dailyTrendChart = null;
-        }
+    // Destroy dailyTrendChartInstance if it was previously created as a different type
+    if (dailyTrendChartInstance && dailyTrendChartInstance.config.type !== 'bar') {
+        dailyTrendChartInstance.destroy();
+        dailyTrendChartInstance = null;
     }
 
-    if (dailyTrendChart) {
-        dailyTrendChart.data.labels = chartLabels;
-        dailyTrendChart.data.datasets[0].data = chartData;
-        dailyTrendChart.update();
+    if (dailyTrendChartInstance) {
+        dailyTrendChartInstance.data.labels = chartLabels;
+        dailyTrendChartInstance.data.datasets = datasets;
+        dailyTrendChartInstance.update();
     } else {
-        dailyTrendChart = new Chart(ctx, {
-            type: chartType,
+        dailyTrendChartInstance = new Chart(ctx, {
+            type: 'bar',
             data: {
                 labels: chartLabels,
-                datasets: [{
-                    label: '支出合計',
-                    data: chartData,
-                    borderColor: '#6366F1',
-                    backgroundColor: chartType === 'line' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.6)',
-                    fill: chartType === 'line',
-                    tension: 0.3,
-                    borderWidth: 2
-                }]
+                datasets: datasets
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        labels: {
+                            color: '#9CA3AF',
+                            font: { family: 'Plus Jakarta Sans', size: 9 },
+                            boxWidth: 8,
+                            padding: 8
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                if (context.raw === 0) return null;
+                                return `${context.dataset.label}: ¥${context.raw.toLocaleString()}`;
+                            }
+                        }
+                    }
+                },
                 scales: {
                     y: {
+                        stacked: true,
                         ticks: { color: '#9CA3AF' },
                         grid: { color: 'rgba(255,255,255,0.05)' }
                     },
                     x: {
+                        stacked: true,
                         ticks: { color: '#9CA3AF', maxRotation: 0 },
                         grid: { display: false }
                     }
@@ -1900,7 +2054,7 @@ function updateAnalyticsView() {
         tableBody.appendChild(tr);
     });
 
-    // 3. Render Top 5 Expensive Items Purchased
+    // 3. Render Top 10 Expensive Items Purchased (Expanded from 5 to 10)
     const allItems = [];
     resolvedTxns.forEach(t => {
         t.items.forEach(item => {
@@ -1915,15 +2069,15 @@ function updateAnalyticsView() {
     });
 
     allItems.sort((a, b) => b.price - a.price);
-    const top5 = allItems.slice(0, 5);
+    const top10 = allItems.slice(0, 10);
 
     const rankingContainer = document.getElementById('topExpensiveItemsList');
     rankingContainer.innerHTML = '';
     
-    if (top5.length === 0) {
+    if (top10.length === 0) {
         rankingContainer.innerHTML = `<p style="text-align:center; padding: 20px; color: var(--text-muted);">データがありません。</p>`;
     } else {
-        top5.forEach((item, index) => {
+        top10.forEach((item, index) => {
             const meta = categoryMeta[item.category] || categoryMeta.others;
             const rankCard = document.createElement('div');
             rankCard.className = 'ranking-card';
@@ -1945,9 +2099,54 @@ function updateAnalyticsView() {
         });
     }
 
-    lucide.createIcons();
-    updateCategoryCharts(resolvedTxns);
-}
+    // 4. Render Top 10 Stores Spend Rankings
+    const storeData = {};
+    resolvedTxns.forEach(t => {
+        const store = t.storeName || "不明な店舗・用途";
+        if (!storeData[store]) {
+            storeData[store] = { total: 0, count: 0 };
+        }
+        storeData[store].total += t.total;
+        storeData[store].count += 1;
+    });
+    
+    const sortedStores = Object.keys(storeData).map(name => {
+        return {
+            name: name,
+            total: storeData[name].total,
+            count: storeData[name].count
+        };
+    });
+    sortedStores.sort((a, b) => b.total - a.total);
+    const top10Stores = sortedStores.slice(0, 10);
+    
+    const storeRankingContainer = document.getElementById('topStoresList');
+    if (storeRankingContainer) {
+        storeRankingContainer.innerHTML = '';
+        
+        if (top10Stores.length === 0) {
+            storeRankingContainer.innerHTML = `<p style="text-align:center; padding: 20px; color: var(--text-muted);">データがありません。</p>`;
+        } else {
+            top10Stores.forEach((store, index) => {
+                const rankCard = document.createElement('div');
+                rankCard.className = 'ranking-card';
+                rankCard.innerHTML = `
+                    <div class="ranking-num">${index + 1}</div>
+                    <div class="ranking-details">
+                        <div style="font-weight:600; font-size:13px;">${store.name}</div>
+                        <div style="font-size:11px; color:var(--text-muted);">
+                            利用回数: ${store.count} 回
+                        </div>
+                    </div>
+                    <div style="display:flex; flex-direction:column; align-items:flex-end;">
+                        <strong style="color:#FFF; font-size:14px;">¥${store.total.toLocaleString()}</strong>
+                    </div>
+                `;
+                storeRankingContainer.appendChild(rankCard);
+            });
+        }
+    }
+
 
 // Chart.js Category doughnut init
 function initCharts() {

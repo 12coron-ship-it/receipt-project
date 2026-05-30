@@ -178,6 +178,8 @@
                             <div class="progress-bar-container">
                                 <div class="progress-bar-fill budgetProgressBar" style="background: linear-gradient(90deg, var(--primary) 0%, #8B5CF6 100%);"></div>
                             </div>
+                            <!-- カテゴリ別の予算消化率表示エリア -->
+                            <div id="dashboardCategoryBudgets" style="margin-top: 15px; display: flex; flex-direction: column; gap: 10px;"></div>
                         </div>
                     </div>
 
@@ -306,12 +308,22 @@
 
                 <!-- Right Column: Rank and distribution -->
                 <div style="display: flex; flex-direction: column; gap: 30px;">
-                    <!-- Top 5 Expensive Items Purchased -->
+                    <!-- Top 10 Expensive Items Purchased -->
                     <div class="glass-panel" style="padding: 24px;">
                         <h3 class="panel-title" style="border-bottom: none; margin-bottom: 15px;">
-                            <i data-lucide="award" style="color: #F59E0B;"></i> 高額支出ランキング (TOP 5)
+                            <i data-lucide="award" style="color: #F59E0B;"></i> 高額支出ランキング (TOP 10)
                         </h3>
                         <div class="ranking-list" id="topExpensiveItemsList">
+                            <!-- Generated dynamically by JS -->
+                        </div>
+                    </div>
+
+                    <!-- よく使う店舗・場所ランキング (TOP 10) -->
+                    <div class="glass-panel" style="padding: 24px;">
+                        <h3 class="panel-title" style="border-bottom: none; margin-bottom: 15px;">
+                            <i data-lucide="map-pin" style="color: #EF4444;"></i> よく使う店舗・場所ランキング (TOP 10)
+                        </h3>
+                        <div class="ranking-list" id="topStoresList">
                             <!-- Generated dynamically by JS -->
                         </div>
                     </div>
@@ -347,12 +359,12 @@
                     
                     <div class="budget-form-grid">
                         <div class="form-group">
-                            <label for="budgetStartDate">開始日</label>
-                            <input type="date" id="budgetStartDate">
+                            <label for="budgetStartDate">開始月</label>
+                            <input type="month" id="budgetStartDate">
                         </div>
                         <div class="form-group">
-                            <label for="budgetEndDate">終了日</label>
-                            <input type="date" id="budgetEndDate">
+                            <label for="budgetEndDate">終了月</label>
+                            <input type="month" id="budgetEndDate">
                         </div>
                     </div>
 
