@@ -341,6 +341,40 @@ function getActiveBudgetForMonth(date) {
     return active ? active.categories : {};
 }
 
+function getBudgetForMonth(year, month) {
+    return getActiveBudgetForMonth(new Date(year, month - 1, 15));
+}
+
+function getBudgetForPeriod(period, date) {
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1; // 1-indexed
+    
+    const aggregatedBudget = {};
+    Object.keys(categoryMeta).forEach(k => aggregatedBudget[k] = 0);
+    
+    let monthsToSum = [];
+    if (period === 'month') {
+        monthsToSum.push(month);
+    } else if (period === 'quarter') {
+        const q = Math.ceil(month / 3);
+        const startMonth = (q - 1) * 3 + 1;
+        monthsToSum = [startMonth, startMonth + 1, startMonth + 2];
+    } else if (period === 'year') {
+        for (let m = 1; m <= 12; m++) monthsToSum.push(m);
+    }
+    
+    monthsToSum.forEach(m => {
+        const monthBudget = getBudgetForMonth(year, m);
+        Object.entries(monthBudget).forEach(([cat, val]) => {
+            if (aggregatedBudget[cat] !== undefined) {
+                aggregatedBudget[cat] += val;
+            }
+        });
+    });
+    
+    return aggregatedBudget;
+}
+
 // 13. Dashboard View Updates
 function updateDashboard() {
     const year = currentMonth.getFullYear();
@@ -1303,7 +1337,7 @@ function updateAnalyticsView() {
         catKeys.forEach(k => catTotals[k] = 0);
         datasetTxns.forEach(t => t.items.forEach(i => catTotals[i.category || 'others'] += i.price));
         
-        let activeBudget = getActiveBudgetForMonth(currentMonth);
+        let activeBudget = getBudgetForPeriod(analyticsPeriod, currentMonth);
         const sortedCats = catKeys.map(k => ({ key: k, spent: catTotals[k] })).sort((a, b) => b.spent - a.spent);
         
         sortedCats.forEach(sc => {
