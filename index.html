@@ -21,6 +21,11 @@
                 <div id="apiKeyStatus" class="api-key-badge disconnected">
                     <i data-lucide="info"></i> デモモード
                 </div>
+                <!-- CSV Import/Export Buttons -->
+                <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
+                <button class="btn btn-secondary" id="importCsvBtn" style="padding: 8px 16px;">
+                    <i data-lucide="upload"></i> CSV読込
+                </button>
                 <button class="btn btn-secondary" id="exportCsvBtn" style="padding: 8px 16px;">
                     <i data-lucide="download"></i> CSV出力
                 </button>
@@ -39,7 +44,7 @@
                 <i data-lucide="bar-chart-3" style="width: 18px; height: 18px;"></i> データ分析
             </button>
             <button class="nav-tab" data-tab="budgets">
-                <i data-lucide="wallet" style="width: 18px; height: 18px;"></i> 予算設定
+                <i data-lucide="wallet" style="width: 18px; height: 18px;"></i> 予算・固定費設定
             </button>
         </nav>
 
@@ -63,9 +68,14 @@
                     </div>
 
                     <!-- In-App Camera Button for bulk snapping on mobile -->
-                    <button class="btn btn-primary" id="startCameraBtn" style="margin-top: -10px; width: 100%; height: 50px;">
-                        <i data-lucide="camera"></i> スマホカメラで連続撮影する
-                    </button>
+                    <div style="display: flex; gap: 10px; flex-direction: column;">
+                        <button class="btn btn-primary" id="startCameraBtn" style="width: 100%; height: 48px;">
+                            <i data-lucide="camera"></i> スマホカメラで連続撮影する
+                        </button>
+                        <button class="btn btn-secondary" id="manualInputBtn" style="width: 100%; height: 48px;">
+                            <i data-lucide="keyboard"></i> 手動で入力する
+                        </button>
+                    </div>
 
                     <!-- Bulk Scanning Progress Container -->
                     <div class="glass-panel" id="bulkProgressContainer" style="display: none; padding: 20px;">
@@ -98,8 +108,8 @@
                         
                         <div class="form-group-grid">
                             <div class="form-group">
-                                <label for="receiptStore">店舗名</label>
-                                <input type="text" id="receiptStore" placeholder="店舗名を入力">
+                                <label for="receiptStore">店舗名/支出名</label>
+                                <input type="text" id="receiptStore" placeholder="店舗名または用途を入力">
                             </div>
                             <div class="form-group">
                                 <label for="receiptDate">日付</label>
@@ -146,16 +156,16 @@
                     <div>
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
                             <div style="display: flex; align-items: center; gap: 8px;">
-                                <button class="btn btn-secondary btn-icon" id="prevMonthBtn" style="padding: 6px;" title="前月へ">
+                                <button class="btn btn-secondary btn-icon prevMonthBtn" style="padding: 6px;" title="前月へ">
                                     <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i>
                                 </button>
                                 <span class="currentMonthYearLabel" style="font-family: var(--font-heading); font-weight: 600; font-size: 16px;">2026年05月</span>
-                                <button class="btn btn-secondary btn-icon" id="nextMonthBtn" style="padding: 6px;" title="翌月へ">
+                                <button class="btn btn-secondary btn-icon nextMonthBtn" style="padding: 6px;" title="翌月へ">
                                     <i data-lucide="chevron-right" style="width: 16px; height: 16px;"></i>
                                 </button>
                             </div>
                             <div style="font-size: 12px; color: var(--text-muted);">
-                                期間予算連動中
+                                期間予算・固定費連動中
                             </div>
                         </div>
 
@@ -236,15 +246,25 @@
                 <h2 style="font-family: var(--font-heading); font-size: 24px; font-weight: 600; display: flex; align-items: center; gap: 10px;">
                     <i data-lucide="line-chart" style="color: var(--primary);"></i> 詳細データ分析
                 </h2>
-                <!-- Shared Month Navigator -->
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <button class="btn btn-secondary btn-icon prevMonthBtn" style="padding: 6px;">
-                        <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i>
-                    </button>
-                    <span class="currentMonthYearLabel" style="font-family: var(--font-heading); font-weight: 600; font-size: 16px;">2026年05月</span>
-                    <button class="btn btn-secondary btn-icon nextMonthBtn" style="padding: 6px;">
-                        <i data-lucide="chevron-right" style="width: 16px; height: 16px;"></i>
-                    </button>
+                
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <!-- Aggregate Period Selector -->
+                    <div class="toggle-group" id="analyticsPeriodToggle">
+                        <button class="toggle-btn active" data-period="month">月次</button>
+                        <button class="toggle-btn" data-period="quarter">四半期</button>
+                        <button class="toggle-btn" data-period="year">年間</button>
+                    </div>
+                    
+                    <!-- Shared Month Navigator (hidden when Q / Y is selected) -->
+                    <div style="display: flex; align-items: center; gap: 8px;" id="analyticsMonthNav">
+                        <button class="btn btn-secondary btn-icon prevMonthBtn" style="padding: 6px;">
+                            <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i>
+                        </button>
+                        <span class="currentMonthYearLabel" style="font-family: var(--font-heading); font-weight: 600; font-size: 16px;">2026年05月</span>
+                        <button class="btn btn-secondary btn-icon nextMonthBtn" style="padding: 6px;">
+                            <i data-lucide="chevron-right" style="width: 16px; height: 16px;"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -252,10 +272,11 @@
                 
                 <!-- Left Column: Spend Trends & Categories -->
                 <div style="display: flex; flex-direction: column; gap: 30px;">
-                    <!-- Line Chart: Daily Spending Trend -->
+                    <!-- Dynamic Trend Chart Card -->
                     <div class="glass-panel" style="padding: 24px;">
                         <h3 class="panel-title" style="border-bottom: none; margin-bottom: 15px;">
-                            <i data-lucide="trending-up" style="color: var(--accent);"></i> 日別支出の推移
+                            <i data-lucide="trending-up" style="color: var(--accent);" id="trendChartIcon"></i> 
+                            <span id="trendChartTitle">日別支出の推移</span>
                         </h3>
                         <div style="position: relative; height: 250px; width: 100%;">
                             <canvas id="dailyTrendChart"></canvas>
@@ -309,17 +330,18 @@
             </div>
         </div>
 
-        <!-- ================= VIEW 3: BUDGET SETTINGS ================= -->
+        <!-- ================= VIEW 3: BUDGETS & FIXED COSTS ================= -->
         <div id="budgetsView" class="view-panel">
-            <h2 style="font-family: var(--font-heading); font-size: 24px; font-weight: 600; margin-bottom: 25px; display: flex; align-items: center; gap: 10px;">
-                <i data-lucide="sliders-horizontal" style="color: var(--primary);"></i> 予算管理設定
+            
+            <!-- SECTION 1: Category Monthly Budgets -->
+            <h2 style="font-family: var(--font-heading); font-size: 22px; font-weight: 600; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                <i data-lucide="sliders-horizontal" style="color: var(--primary);"></i> ① 予算期間設定
             </h2>
-
-            <div class="budget-panel-layout">
+            <div class="budget-panel-layout" style="margin-bottom: 40px;">
                 
-                <!-- Left: Create/Edit Budget Period Form -->
+                <!-- Left: Budget Period form -->
                 <div class="glass-panel" style="padding: 24px;">
-                    <h3 class="panel-title" id="budgetFormTitle">
+                    <h3 class="panel-title" id="budgetFormTitle" style="font-size: 16px;">
                         <i data-lucide="plus-circle" style="color: var(--accent);"></i> 予算期間の新規作成
                     </h3>
                     
@@ -334,51 +356,91 @@
                         </div>
                     </div>
 
-                    <div class="budget-form-section-title">項目別予算（各カテゴリの予算額を入力）</div>
+                    <div class="budget-form-section-title">項目別予算（主要カテゴリを入力）</div>
                     
-                    <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px;">
-                        <div class="form-group" style="display: grid; grid-template-columns: 1fr 1.5fr; align-items: center; gap: 15px;">
-                            <span class="badge food" style="font-size: 11px; padding: 6px 12px; text-align: center;">食費</span>
-                            <input type="number" id="budgetFood" placeholder="30000" value="0">
-                        </div>
-                        <div class="form-group" style="display: grid; grid-template-columns: 1fr 1.5fr; align-items: center; gap: 15px;">
-                            <span class="badge utilities" style="font-size: 11px; padding: 6px 12px; text-align: center;">水道光熱・通信</span>
-                            <input type="number" id="budgetUtilities" placeholder="15000" value="0">
-                        </div>
-                        <div class="form-group" style="display: grid; grid-template-columns: 1fr 1.5fr; align-items: center; gap: 15px;">
-                            <span class="badge shopping" style="font-size: 11px; padding: 6px 12px; text-align: center;">日用品・買い物</span>
-                            <input type="number" id="budgetShopping" placeholder="10000" value="0">
-                        </div>
-                        <div class="form-group" style="display: grid; grid-template-columns: 1fr 1.5fr; align-items: center; gap: 15px;">
-                            <span class="badge entertainment" style="font-size: 11px; padding: 6px 12px; text-align: center;">娯楽・趣味</span>
-                            <input type="number" id="budgetEntertainment" placeholder="5000" value="0">
-                        </div>
-                        <div class="form-group" style="display: grid; grid-template-columns: 1fr 1.5fr; align-items: center; gap: 15px;">
-                            <span class="badge others" style="font-size: 11px; padding: 6px 12px; text-align: center;">その他</span>
-                            <input type="number" id="budgetOthers" placeholder="5000" value="0">
-                        </div>
+                    <div id="budgetInputsContainer" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; max-height: 250px; overflow-y: auto; padding-right: 5px;">
+                        <!-- Category budget inputs dynamically generated by JS to avoid huge HTML page -->
                     </div>
 
                     <div style="display: flex; justify-content: flex-end; gap: 12px;">
                         <button class="btn btn-secondary" id="resetBudgetFormBtn">クリア</button>
                         <button class="btn btn-primary" id="saveBudgetBtn">
-                            <i data-lucide="check"></i> 予算設定を保存
+                            <i data-lucide="check"></i> 予算を保存
                         </button>
                     </div>
                 </div>
 
-                <!-- Right: Configured Budget Periods List -->
+                <!-- Right: Saved Budgets -->
                 <div class="glass-panel" style="padding: 24px;">
-                    <h3 class="panel-title" style="border-bottom: none; margin-bottom: 15px;">
+                    <h3 class="panel-title" style="border-bottom: none; margin-bottom: 15px; font-size: 16px;">
                         <i data-lucide="clipboard-list" style="color: var(--primary);"></i> 設定済みの予算期間
                     </h3>
+                    <div class="budget-periods-list" id="budgetPeriodsList" style="max-height: 480px; overflow-y: auto; padding-right: 5px;">
+                        <!-- Budget cards -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION 2: Recurring Expenses (Fixed Costs) -->
+            <h2 style="font-family: var(--font-heading); font-size: 22px; font-weight: 600; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                <i data-lucide="refresh-cw" style="color: var(--accent);"></i> ② 固定費・定期支出の設定
+            </h2>
+            <div class="budget-panel-layout">
+                
+                <!-- Left: Create/Edit Recurring Form -->
+                <div class="glass-panel" style="padding: 24px;">
+                    <h3 class="panel-title" id="recurringFormTitle" style="font-size: 16px;">
+                        <i data-lucide="plus-circle" style="color: var(--accent);"></i> 定期支出の新規作成
+                    </h3>
                     
-                    <div class="budget-periods-list" id="budgetPeriodsList">
-                        <!-- Budget period cards generated by JS -->
+                    <div class="form-group" style="margin-bottom: 14px;">
+                        <label for="recurringName">項目名 / サービス名</label>
+                        <input type="text" id="recurringName" placeholder="家賃、Netflix、ジム会費など">
+                    </div>
+                    
+                    <div class="budget-form-grid" style="margin-bottom: 14px;">
+                        <div class="form-group">
+                            <label for="recurringAmount">毎月の金額 (¥)</label>
+                            <input type="number" id="recurringAmount" placeholder="1480">
+                        </div>
+                        <div class="form-group">
+                            <label for="recurringCategory">カテゴリ</label>
+                            <select id="recurringCategory">
+                                <!-- Generated by JS -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="budget-form-grid" style="margin-bottom: 24px;">
+                        <div class="form-group">
+                            <label for="recurringStartDate">適用開始日</label>
+                            <input type="date" id="recurringStartDate">
+                        </div>
+                        <div class="form-group">
+                            <label for="recurringEndDate">適用終了日</label>
+                            <input type="date" id="recurringEndDate">
+                        </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: flex-end; gap: 12px;">
+                        <button class="btn btn-secondary" id="resetRecurringFormBtn">クリア</button>
+                        <button class="btn btn-primary" id="saveRecurringBtn">
+                            <i data-lucide="check"></i> 固定費を保存
+                        </button>
                     </div>
                 </div>
 
+                <!-- Right: Active Recurring Subscriptions -->
+                <div class="glass-panel" style="padding: 24px;">
+                    <h3 class="panel-title" style="border-bottom: none; margin-bottom: 15px; font-size: 16px;">
+                        <i data-lucide="list" style="color: var(--accent);"></i> 登録済みの固定費一覧
+                    </h3>
+                    <div class="budget-periods-list" id="recurringPeriodsList" style="max-height: 380px; overflow-y: auto; padding-right: 5px;">
+                        <!-- Dynamic recurring item cards -->
+                    </div>
+                </div>
             </div>
+
         </div>
 
     </div>
