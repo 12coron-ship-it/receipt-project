@@ -14,13 +14,9 @@
 <div class="container">
   <!-- HEADER -->
   <header>
-    <div class="logo"><i data-lucide="receipt"></i> Smart<span>Receipt</span></div>
-    <div class="header-actions">
-      <div id="apiKeyStatus" class="api-key-badge disconnected"><i data-lucide="info"></i> デモモード</div>
-      <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
-      <button class="btn btn-secondary" id="importCsvBtn"><i data-lucide="upload"></i> CSV読込</button>
-      <button class="btn btn-secondary" id="exportCsvBtn"><i data-lucide="download"></i> CSV出力</button>
-      <button class="btn btn-secondary btn-icon-only" id="openSettingsBtn" title="API設定"><i data-lucide="settings"></i></button>
+    <div class="logo" style="display:flex; align-items:center; gap:12px; width:100%;">
+      <i data-lucide="receipt"></i> Smart<span>Receipt</span>
+      <div id="apiKeyStatus" class="api-key-badge disconnected" style="font-size:0.74rem; padding: 4px 10px; margin-left:8px;"><i data-lucide="info"></i> デモモード</div>
     </div>
   </header>
 
@@ -85,7 +81,6 @@
               <button class="btn btn-secondary btn-icon prevMonthBtn" title="前月へ"><i data-lucide="chevron-left"></i></button>
               <span class="currentMonthYearLabel-wrapper">
                 <span class="currentMonthYearLabel">2026年05月</span>
-                <i data-lucide="chevron-down" style="width:14px; height:14px; margin-left:4px; opacity:0.7;"></i>
               </span>
               <button class="btn btn-secondary btn-icon nextMonthBtn" title="翌月へ"><i data-lucide="chevron-right"></i></button>
             </div>
@@ -175,7 +170,6 @@
           <button class="btn btn-secondary btn-icon prevMonthBtn"><i data-lucide="chevron-left"></i></button>
           <span class="currentMonthYearLabel-wrapper">
             <span class="currentMonthYearLabel">2026年05月</span>
-            <i data-lucide="chevron-down" style="width:14px; height:14px; margin-left:4px; opacity:0.7;"></i>
           </span>
           <button class="btn btn-secondary btn-icon nextMonthBtn"><i data-lucide="chevron-right"></i></button>
         </div>
@@ -231,13 +225,21 @@
 
   <!-- VIEW 3: BUDGETS & FIXED COSTS -->
   <div id="budgetsView" class="view-panel">
-    <!-- Section 1: Budget Period -->
-    <h2 class="view-section-title"><i data-lucide="sliders-horizontal" style="color:var(--primary);"></i> ① 予算期間設定</h2>
+    <!-- Section 1: Category Budget Setting -->
+    <h2 class="view-section-title"><i data-lucide="sliders-horizontal" style="color:var(--primary);"></i> ① カテゴリ別予算設定</h2>
     <div class="budget-panel-layout">
       <!-- Input Panel -->
       <div class="glass-panel form-panel">
-        <h3 class="panel-title-sub" id="budgetFormTitle"><i data-lucide="plus-circle" style="color:var(--accent);"></i> 予算期間の新規作成</h3>
-        <div class="budget-form-grid">
+        <h3 class="panel-title-sub" id="budgetFormTitle"><i data-lucide="plus-circle" style="color:var(--accent);"></i> カテゴリ別予算の新規作成</h3>
+        <div class="form-group mb-14">
+          <label for="budgetCategory">対象カテゴリ</label>
+          <select id="budgetCategory"></select>
+        </div>
+        <div class="form-group mb-14">
+          <label for="budgetAmount">毎月の予算金額 (¥)</label>
+          <input type="number" id="budgetAmount" placeholder="50000">
+        </div>
+        <div class="budget-form-grid mb-24">
           <div class="form-group">
             <label for="budgetStartDate">開始月</label>
             <input type="month" id="budgetStartDate">
@@ -247,8 +249,6 @@
             <input type="month" id="budgetEndDate">
           </div>
         </div>
-        <div class="budget-form-section-title">項目別予算（主要カテゴリを入力）</div>
-        <div id="budgetInputsContainer" class="budget-inputs-container"></div>
         <div class="form-actions">
           <button class="btn btn-secondary" id="resetBudgetFormBtn">クリア</button>
           <button class="btn btn-primary" id="saveBudgetBtn"><i data-lucide="check"></i> 予算を保存</button>
@@ -256,7 +256,7 @@
       </div>
       <!-- List Panel -->
       <div class="glass-panel list-panel">
-        <h3 class="panel-title-sub"><i data-lucide="clipboard-list" style="color:var(--primary);"></i> 設定済みの予算期間</h3>
+        <h3 class="panel-title-sub"><i data-lucide="clipboard-list" style="color:var(--primary);"></i> 設定済みのカテゴリ別予算</h3>
         <div class="budget-periods-list" id="budgetPeriodsList"></div>
       </div>
     </div>
@@ -303,6 +303,17 @@
       </div>
     </div>
   </div>
+  
+  <!-- FOOTER -->
+  <footer style="margin-top:40px; padding:24px 0 12px; border-top:1px solid rgba(255,255,255,0.05); display:flex; flex-direction:column; align-items:center; gap:16px;">
+    <div class="footer-actions" style="display:flex; justify-content:center; gap:12px; flex-wrap:wrap;">
+      <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
+      <button class="btn btn-secondary" id="importCsvBtn"><i data-lucide="upload"></i> CSV読込</button>
+      <button class="btn btn-secondary" id="exportCsvBtn"><i data-lucide="download"></i> CSV出力</button>
+      <button class="btn btn-secondary" id="openSettingsBtn"><i data-lucide="settings"></i> API設定</button>
+    </div>
+    <div class="footer-text" style="font-size:0.76rem; color:var(--text-muted);">© 2026 SmartReceipt. All rights reserved.</div>
+  </footer>
 </div>
 
 <!-- MODAL 1: DAY DETAIL -->

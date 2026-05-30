@@ -687,7 +687,7 @@ select {
   background: rgba(15, 20, 35, 0.3);
   border: 1px solid var(--card-border);
   border-radius: var(--radius-sm);
-  padding: 10px 12px;
+  padding: 6px 10px;
 }
 
 .dashboard-category-budget-info {
@@ -2010,26 +2010,33 @@ select {
 
 .prevMonthBtn,
 .nextMonthBtn {
-  border-radius: 50% !important;
-  width: 32px !important;
-  height: 32px !important;
+  border-radius: var(--radius-sm) !important;
+  width: 36px !important;
+  height: 36px !important;
   border: 1px solid var(--card-border) !important;
-  background: rgba(255, 255, 255, 0.02) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  color: var(--text-muted) !important;
+  color: var(--text-main) !important;
   cursor: pointer !important;
   transition: var(--transition) !important;
   padding: 0 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
 }
 
 .prevMonthBtn:hover,
 .nextMonthBtn:hover {
-  background: rgba(99, 102, 241, 0.12) !important;
+  background: var(--primary) !important;
   border-color: var(--primary) !important;
-  color: var(--primary) !important;
-  box-shadow: 0 0 8px var(--primary-glow);
+  color: #fff !important;
+  box-shadow: 0 0 12px var(--primary-glow) !important;
+  transform: translateY(-1px);
+}
+
+.prevMonthBtn:active,
+.nextMonthBtn:active {
+  transform: translateY(1px);
 }
 
 /* Custom Month Picker Modal Grid styling */

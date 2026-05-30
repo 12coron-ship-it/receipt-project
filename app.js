@@ -38,7 +38,25 @@ let recurringExpenses = [];
 let categoryDoughnutCharts = [];
 let trendChartInstance = null;
 
-let currentMonth = new Date();
+function getJSTCurrentDate() {
+    const now = new Date();
+    try {
+        const formatter = new Intl.DateTimeFormat("ja-JP", {
+            timeZone: "Asia/Tokyo",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit"
+        });
+        const parts = formatter.formatToParts(now);
+        const year = parseInt(parts.find(p => p.type === 'year').value);
+        const month = parseInt(parts.find(p => p.type === 'month').value);
+        const day = parseInt(parts.find(p => p.type === 'day').value);
+        return new Date(year, month - 1, day);
+    } catch (e) {
+        return new Date();
+    }
+}
+let currentMonth = getJSTCurrentDate();
 let activeFilterDate = null;
 let analyticsPeriod = 'month'; // 'month' | 'quarter' | 'year'
 
@@ -63,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loadData();
         
         // Render dynamic selections and components
-        buildBudgetInputs();
+        buildBudgetCategorySelect();
         buildRecurringCategorySelect();
         
         initTabNavigation();
@@ -98,7 +116,32 @@ function loadData() {
     
     // Budgets
     const budgetData = localStorage.getItem('receipt_budgets');
-    budgets = budgetData ? JSON.parse(budgetData) : [];
+    const loadedBudgets = budgetData ? JSON.parse(budgetData) : [];
+    
+    // Migrate old format to new category-specific rules if needed
+    let migrated = false;
+    budgets = [];
+    loadedBudgets.forEach(b => {
+        if (b.categories && typeof b.categories === 'object') {
+            Object.entries(b.categories).forEach(([cat, amount]) => {
+                if (amount > 0) {
+                    budgets.push({
+                        id: 'bgt-' + Date.now().toString() + '-' + Math.random().toString(36).substr(2, 4),
+                        category: cat,
+                        amount: amount,
+                        startDate: b.startDate,
+                        endDate: b.endDate
+                    });
+                }
+            });
+            migrated = true;
+        } else if (b.category && b.amount) {
+            budgets.push(b);
+        }
+    });
+    if (migrated) {
+        saveData('budgets');
+    }
     
     // Recurring Costs
     const recurData = localStorage.getItem('receipt_recurring');
@@ -426,6 +469,7 @@ function updateCustomPickerYearLabel() {
     const label = el('pickerYearLabel');
     if (label) label.textContent = `${pickerSelectedYear}年`;
 }
+window.openCustomMonthPicker = openCustomMonthPicker;
 
 function refreshCurrentTabState() {
     updateMonthLabel();
@@ -436,23 +480,16 @@ function refreshCurrentTabState() {
     }
 }
 
-// 11. Budget Inputs dynamically built
-function buildBudgetInputs() {
-    const container = el('budgetInputsContainer');
-    if (!container) return;
-    container.innerHTML = '';
-    
+// 11. Budget Category select builder
+function buildBudgetCategorySelect() {
+    const select = el('budgetCategory');
+    if (!select) return;
+    select.innerHTML = '<option value="">カテゴリを選択</option>';
     Object.entries(categoryMeta).forEach(([key, meta]) => {
-        const row = document.createElement('div');
-        row.className = 'budget-form-row';
-        row.innerHTML = `
-            <span class="budget-row-label"><span class="cat-dot" style="background-color:${meta.color}; margin-right:6px;"></span>${meta.label}</span>
-            <div class="budget-row-input-wrapper">
-                <input type="number" data-category="${key}" class="budget-cat-input" placeholder="0" min="0">
-                <span style="font-size:0.8rem;color:var(--text-muted);">円</span>
-            </div>
-        `;
-        container.appendChild(row);
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = meta.label;
+        select.appendChild(opt);
     });
 }
 
@@ -530,13 +567,22 @@ function getMonthlyResolvedTransactions(year, month) {
     return [...resolvedNormal, ...virtualTxns];
 }
 
-// Find budget covering target month
+// Find active budgets mapping covering target month
 function getActiveBudgetForMonth(date) {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const midMonthDate = `${year}-${month}-15`;
-    const active = budgets.find(b => b.startDate <= midMonthDate && b.endDate >= midMonthDate);
-    return active ? active.categories : {};
+    
+    const activeMapping = {};
+    Object.keys(categoryMeta).forEach(k => activeMapping[k] = 0);
+    
+    budgets.forEach(b => {
+        if (b.startDate <= midMonthDate && b.endDate >= midMonthDate) {
+            activeMapping[b.category] = (activeMapping[b.category] || 0) + b.amount;
+        }
+    });
+    
+    return activeMapping;
 }
 
 function getBudgetForMonth(year, month) {
@@ -735,14 +781,8 @@ function renderCalendar(monthlyTxns) {
         `;
         
         cell.addEventListener('click', () => {
-            if (activeFilterDate === dateStr) {
-                activeFilterDate = null;
-            } else {
-                activeFilterDate = dateStr;
-                if (dayTotal > 0) {
-                    openDayDetailsModal(dateStr, dayTotal, dayTxns);
-                }
-            }
+            activeFilterDate = dateStr;
+            openDayDetailsModal(dateStr, dayTotal, dayTxns);
             renderCalendar(monthlyTxns);
             renderRecentHistory(monthlyTxns);
         });
@@ -759,41 +799,78 @@ function openDayDetailsModal(dateStr, sum, dayTxns) {
     const list = el('dayDetailItemsList');
     if (list) {
         list.innerHTML = '';
-        dayTxns.forEach(t => {
-            const card = document.createElement('div');
-            card.className = 'day-item-card';
-            
-            let recurText = t.isRecurring ? ' <span class="badge" style="background:rgba(168,85,247,0.15);color:#A855F7;padding:1px 6px;margin-left:6px;">固定</span>' : '';
-            
-            let subItemsHtml = t.items.map(item => {
-                const meta = categoryMeta[item.category] || categoryMeta.others;
-                return `
-                    <div class="day-sub-item">
-                        <span class="day-sub-item-label">
-                            <span class="cat-dot" style="background-color:${meta.color}"></span>
-                            <span>${item.name}</span>
-                        </span>
-                        <span>¥${item.price.toLocaleString()}</span>
-                    </div>
-                `;
-            }).join('');
-            
-            card.innerHTML = `
-                <div class="day-item-header">
-                    <span class="day-item-store">${t.storeName}${recurText}</span>
-                    <span class="day-item-total">¥${t.total.toLocaleString()}</span>
-                </div>
-                ${subItemsHtml}
-                <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:8px;">
-                    <button class="history-action-btn" onclick="editTransactionItem('${t.id}')">編集</button>
-                    <button class="history-action-btn delete" onclick="deleteTransactionItem('${t.id}')">削除</button>
+        if (dayTxns.length === 0) {
+            list.innerHTML = `
+                <div class="empty-state" style="padding: 24px 0; text-align: center;">
+                    <div class="empty-icon" style="margin-bottom: 12px; font-size: 24px; color: var(--text-muted);"><i data-lucide="folder-open"></i></div>
+                    <p style="color: var(--text-muted); margin-bottom: 16px;">この日の支出記録はありません。</p>
+                    <button class="btn btn-primary" onclick="startManualInputForDate('${dateStr}')"><i data-lucide="plus"></i> この日に手動入力する</button>
                 </div>
             `;
-            list.appendChild(card);
-        });
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        } else {
+            dayTxns.forEach(t => {
+                const card = document.createElement('div');
+                card.className = 'day-item-card';
+                
+                let recurText = t.isRecurring ? ' <span class="badge" style="background:rgba(168,85,247,0.15);color:#A855F7;padding:1px 6px;margin-left:6px;">固定</span>' : '';
+                
+                let subItemsHtml = t.items.map(item => {
+                    const meta = categoryMeta[item.category] || categoryMeta.others;
+                    return `
+                        <div class="day-sub-item">
+                            <span class="day-sub-item-label">
+                                <span class="cat-dot" style="background-color:${meta.color}"></span>
+                                <span>${item.name}</span>
+                            </span>
+                            <span>¥${item.price.toLocaleString()}</span>
+                        </div>
+                    `;
+                }).join('');
+                
+                card.innerHTML = `
+                    <div class="day-item-header">
+                        <span class="day-item-store">${t.storeName}${recurText}</span>
+                        <span class="day-item-total">¥${t.total.toLocaleString()}</span>
+                    </div>
+                    ${subItemsHtml}
+                    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:8px;">
+                        <button class="history-action-btn" onclick="editTransactionItem('${t.id}')">編集</button>
+                        <button class="history-action-btn delete" onclick="deleteTransactionItem('${t.id}')">削除</button>
+                    </div>
+                `;
+                list.appendChild(card);
+            });
+        }
     }
+    
+    // Manage footer
+    const footer = qs('#dayDetailModal .modal-footer');
+    if (footer) {
+        if (dayTxns.length > 0) {
+            footer.innerHTML = `
+                <button class="btn btn-secondary" id="closeDayDetailModalBtn" onclick="closeModal('dayDetailModal')">閉じる</button>
+                <button class="btn btn-primary" onclick="startManualInputForDate('${dateStr}')"><i data-lucide="plus"></i> この日に追加</button>
+            `;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        } else {
+            footer.innerHTML = `
+                <button class="btn btn-secondary" id="closeDayDetailModalBtn" onclick="closeModal('dayDetailModal')">閉じる</button>
+            `;
+        }
+    }
+    
     openModal('dayDetailModal');
 }
+
+function startManualInputForDate(dateStr) {
+    closeModal('dayDetailModal');
+    startManualInputForm();
+    if (el('receiptDate')) {
+        el('receiptDate').value = dateStr;
+    }
+}
+window.startManualInputForDate = startManualInputForDate;
 
 // 15. Render Transaction History List
 function renderRecentHistory(monthlyTxns) {
@@ -1707,13 +1784,15 @@ function renderRankings(datasetTxns) {
     }
 }
 
-// 23. Budgets Periods settings & listings
+// 23. Budgets settings & listings (Category-specific)
 function saveBudgetPeriodConfig() {
+    const category = el('budgetCategory').value;
+    const amount = parseInt(el('budgetAmount').value) || 0;
     const startMonth = el('budgetStartDate').value;
     const endMonth = el('budgetEndDate').value;
     
-    if (!startMonth || !endMonth) {
-        showToast('開始月と終了月を選択してください。', 'error');
+    if (!category || amount <= 0 || !startMonth || !endMonth) {
+        showToast('必須項目をすべて入力してください。', 'error');
         return;
     }
     
@@ -1728,33 +1807,33 @@ function saveBudgetPeriodConfig() {
     const lastDay = new Date(ey, em, 0).getDate();
     const endDate = `${ey}-${em}-${lastDay}`;
     
-    const categories = {};
-    qsa('.budget-cat-input').forEach(input => {
-        const val = parseInt(input.value) || 0;
-        if (val > 0) {
-            categories[input.getAttribute('data-category')] = val;
-        }
-    });
-    
     if (editingBudgetPeriodId) {
         const index = budgets.findIndex(b => b.id === editingBudgetPeriodId);
         if (index > -1) {
-            budgets[index] = { ...budgets[index], startDate, endDate, categories };
+            budgets[index] = {
+                ...budgets[index],
+                category,
+                amount,
+                startDate,
+                endDate
+            };
             showToast('予算設定を更新しました。', 'success');
         }
     } else {
         budgets.push({
             id: 'bgt-' + Date.now().toString(),
+            category,
+            amount,
             startDate,
-            endDate,
-            categories
+            endDate
         });
-        showToast('予算期間を設定しました。', 'success');
+        showToast('カテゴリ予算を設定しました。', 'success');
     }
     
     saveData('budgets');
     resetBudgetConfigForm();
     renderBudgetsList();
+    updateDashboard();
 }
 
 function renderBudgetsList() {
@@ -1763,44 +1842,33 @@ function renderBudgetsList() {
     container.innerHTML = '';
     
     // Sort desc start date
-    const sorted = [...budgets].sort((a, b) => b.startDate.localeCompare(a.startDate));
+    const sorted = [...budgets].sort((a, b) => b.startDate.localeCompare(a.startDate) || a.category.localeCompare(b.category));
     
     if (sorted.length === 0) {
-        container.innerHTML = '<div class="empty-state"><p>設定された予算期間はありません。</p></div>';
+        container.innerHTML = '<div class="empty-state"><p>設定されたカテゴリ別予算はありません。</p></div>';
         return;
     }
     
     sorted.forEach(b => {
-        const total = Object.values(b.categories).reduce((sum, v) => sum + v, 0);
         const startLabel = b.startDate.substring(0, 7).replace('-', '年') + '月';
         const endLabel = b.endDate.substring(0, 7).replace('-', '年') + '月';
-        
-        let pillDetailsHtml = '';
-        Object.entries(b.categories).forEach(([k, v]) => {
-            const meta = categoryMeta[k] || categoryMeta.others;
-            pillDetailsHtml += `
-                <div class="budget-period-cat-pill">
-                    <span class="budget-period-cat-label">${meta.label}</span>
-                    <span class="budget-period-cat-val">¥${v.toLocaleString()}</span>
-                </div>
-            `;
-        });
+        const meta = categoryMeta[b.category] || categoryMeta.others;
         
         const card = document.createElement('div');
         card.className = 'budget-period-card';
         card.innerHTML = `
-            <div class="budget-period-header">
+            <div class="budget-period-header" style="margin-bottom:0;">
                 <div>
-                    <div class="budget-period-title">${startLabel} 〜 ${endLabel}</div>
-                    <span style="font-size:0.8rem;color:var(--text-muted);">総予算: ¥${total.toLocaleString()}</span>
+                    <div class="budget-period-title">
+                        <span class="badge ${meta.class}" style="margin-right:6px;">${meta.label}</span>
+                        ${startLabel} 〜 ${endLabel}
+                    </div>
+                    <span style="font-size:0.9rem; font-weight:700; color:var(--accent);">予算: ¥${b.amount.toLocaleString()} / 月</span>
                 </div>
                 <div class="budget-period-actions">
                     <button class="period-action-btn" onclick="editBudgetPeriod('${b.id}')" title="編集"><i data-lucide="edit-2"></i></button>
                     <button class="period-action-btn delete" onclick="deleteBudgetPeriod('${b.id}')" title="削除"><i data-lucide="trash-2"></i></button>
                 </div>
-            </div>
-            <div class="budget-period-categories">
-                ${pillDetailsHtml}
             </div>
         `;
         container.appendChild(card);
@@ -1816,15 +1884,13 @@ window.editBudgetPeriod = function(id) {
     editingBudgetPeriodId = id;
     if (el('budgetFormTitle')) el('budgetFormTitle').innerHTML = '<i data-lucide="edit" style="color:var(--primary)"></i> 予算の編集';
     
+    if (el('budgetCategory')) el('budgetCategory').value = b.category;
+    if (el('budgetAmount')) el('budgetAmount').value = b.amount;
     if (el('budgetStartDate')) el('budgetStartDate').value = b.startDate.substring(0, 7);
     if (el('budgetEndDate')) el('budgetEndDate').value = b.endDate.substring(0, 7);
     
-    qsa('.budget-cat-input').forEach(input => {
-        const cat = input.getAttribute('data-category');
-        input.value = b.categories[cat] || '';
-    });
-    
-    if (el('budgetStartDate')) el('budgetStartDate').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (el('budgetCategory')) el('budgetCategory').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 };
 
 window.deleteBudgetPeriod = function(id) {
@@ -1832,15 +1898,17 @@ window.deleteBudgetPeriod = function(id) {
     budgets = budgets.filter(b => b.id !== id);
     saveData('budgets');
     renderBudgetsList();
+    updateDashboard();
     showToast('予算設定を削除しました。', 'info');
 };
 
 function resetBudgetConfigForm() {
     editingBudgetPeriodId = null;
-    if (el('budgetFormTitle')) el('budgetFormTitle').innerHTML = '<i data-lucide="plus-circle" style="color:var(--accent);"></i> 予算期間の新規作成';
+    if (el('budgetFormTitle')) el('budgetFormTitle').innerHTML = '<i data-lucide="plus-circle" style="color:var(--accent);"></i> カテゴリ別予算の新規作成';
+    if (el('budgetCategory')) el('budgetCategory').value = '';
+    if (el('budgetAmount')) el('budgetAmount').value = '';
     if (el('budgetStartDate')) el('budgetStartDate').value = '';
     if (el('budgetEndDate')) el('budgetEndDate').value = '';
-    qsa('.budget-cat-input').forEach(input => input.value = '');
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
