@@ -9,6 +9,10 @@ let editingBudgetPeriodId = null; // ID of budget period being edited
 let currentMonth = new Date(); // Active viewing month
 let activeFilterDate = null; // Holds filtered date string "YYYY-MM-DD"
 
+// WebRTC Camera State
+let cameraStream = null;
+let capturedImages = []; // Array of base64 DataURLs
+
 // Mock Data Database for Demo Mode (Each item now has its own category)
 const mockReceipts = [
     {
@@ -134,6 +138,16 @@ const saveBudgetBtn = document.getElementById('saveBudgetBtn');
 const resetBudgetFormBtn = document.getElementById('resetBudgetFormBtn');
 const budgetPeriodsList = document.getElementById('budgetPeriodsList');
 const budgetFormTitle = document.getElementById('budgetFormTitle');
+
+// In-App WebRTC Camera Elements
+const startCameraBtn = document.getElementById('startCameraBtn');
+const cameraViewOverlay = document.getElementById('cameraViewOverlay');
+const cameraVideo = document.getElementById('cameraVideo');
+const closeCameraBtn = document.getElementById('closeCameraBtn');
+const shutterBtn = document.getElementById('shutterBtn');
+const cameraFlash = document.getElementById('cameraFlash');
+const capturedThumbsContainer = document.getElementById('capturedThumbsContainer');
+const processCapturedBtn = document.getElementById('processCapturedBtn');
 
 // Initialize the Application
 document.addEventListener('DOMContentLoaded', () => {
@@ -490,13 +504,10 @@ function getActiveBudgetForMonth(date) {
     const match = budgets.find(b => {
         const bStart = new Date(b.startDate);
         const bEnd = new Date(b.endDate);
-        // Checks if budget dates overlap with month range
         return bStart <= monthEnd && bEnd >= monthStart;
     });
 
     if (match) return match.categories;
-    
-    // Default fallback if no dates align
     return { food: 0, utilities: 0, shopping: 0, entertainment: 0, others: 0 };
 }
 
@@ -551,6 +562,12 @@ function setupEventListeners() {
     // Budget Tab control triggers
     saveBudgetBtn.addEventListener('click', saveBudgetPeriod);
     resetBudgetFormBtn.addEventListener('click', resetBudgetForm);
+
+    // Continuous In-App Camera Triggers
+    startCameraBtn.addEventListener('click', startContinuousCamera);
+    closeCameraBtn.addEventListener('click', stopContinuousCamera);
+    shutterBtn.addEventListener('click', captureSnapshot);
+    processCapturedBtn.addEventListener('click', submitCapturedImages);
 }
 
 // Day Detail Modal Popover
@@ -609,6 +626,169 @@ function handleFileSelect(e) {
         processFiles(e.target.files);
     }
 }
+
+// ----------------- WebRTC Camera Functions -----------------
+
+async function startContinuousCamera() {
+    const constraints = {
+        video: {
+            facingMode: { ideal: "environment" }, // Request back camera first
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+        },
+        audio: false
+    };
+
+    try {
+        cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+        cameraVideo.srcObject = cameraStream;
+        cameraViewOverlay.style.display = 'flex';
+        capturedImages = [];
+        updateCameraThumbs();
+        showToast('カメラを起動しました。レシートを撮影してください。', 'info');
+    } catch (err) {
+        console.error('Camera open failed:', err);
+        showToast('カメラの起動に失敗しました。カメラ権限を確認してください。', 'error');
+    }
+}
+
+function stopContinuousCamera() {
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+    }
+    cameraVideo.srcObject = null;
+    cameraViewOverlay.style.display = 'none';
+}
+
+function captureSnapshot() {
+    if (!cameraStream) return;
+
+    // Trigger white flash animation
+    cameraFlash.classList.add('flash-active');
+    setTimeout(() => cameraFlash.classList.remove('flash-active'), 250);
+
+    const canvas = document.createElement('canvas');
+    // Ensure canvas dimensions match actual video resolution
+    const width = cameraVideo.videoWidth || 640;
+    const height = cameraVideo.videoHeight || 480;
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext('2d');
+    
+    // Draw mirrored or standard depending on front/back camera (mostly standard environment)
+    ctx.drawImage(cameraVideo, 0, 0, width, height);
+
+    // Get Base64 image
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    capturedImages.push(dataUrl);
+
+    // Play feedback toast
+    showToast(`${capturedImages.length}枚目のレシートを撮影しました。`, 'success');
+    
+    updateCameraThumbs();
+}
+
+function updateCameraThumbs() {
+    capturedThumbsContainer.innerHTML = '';
+    
+    capturedImages.forEach((imgData, idx) => {
+        const thumbWrapper = document.createElement('div');
+        thumbWrapper.className = 'captured-thumb-wrapper';
+        
+        thumbWrapper.innerHTML = `
+            <img class="captured-thumb-img" src="${imgData}" alt="Captured Receipt">
+            <button class="captured-thumb-delete" data-index="${idx}">&times;</button>
+        `;
+        
+        thumbWrapper.querySelector('.captured-thumb-delete').addEventListener('click', (e) => {
+            e.stopPropagation();
+            capturedImages.splice(idx, 1);
+            updateCameraThumbs();
+        });
+        
+        capturedThumbsContainer.appendChild(thumbWrapper);
+    });
+
+    // Auto scroll thumbnails container to the right
+    capturedThumbsContainer.scrollLeft = capturedThumbsContainer.scrollWidth;
+
+    // Manage scan start button
+    const count = capturedImages.length;
+    processCapturedBtn.innerHTML = `<i data-lucide="check"></i> 完了 (${count}枚スキャン)`;
+    processCapturedBtn.disabled = count === 0;
+    lucide.createIcons();
+}
+
+async function submitCapturedImages() {
+    if (capturedImages.length === 0) return;
+
+    const imagesToProcess = [...capturedImages];
+    stopContinuousCamera(); // Close camera view
+
+    if (imagesToProcess.length === 1) {
+        // Process Single Image (Shows scanner visualization and loads editor)
+        const base64Data = imagesToProcess[0].split(',')[1];
+        scannedImage.src = imagesToProcess[0];
+        
+        dropzone.style.display = 'none';
+        scannerContainer.style.display = 'flex';
+        scannerContainer.classList.add('scanning');
+        editorPanel.style.display = 'none';
+        editingTransactionId = null;
+
+        performScan(base64Data, 'image/jpeg');
+    } else {
+        // Process Bulk Images in Background (Progress Bar)
+        dropzone.style.display = 'none';
+        editorPanel.style.display = 'none';
+        scannerContainer.style.display = 'none';
+        bulkProgressContainer.style.display = 'block';
+        
+        bulkProgressBar.style.width = '0%';
+        bulkProgressText.innerText = `0 / ${imagesToProcess.length} 枚完了`;
+        
+        let successCount = 0;
+        
+        for (let i = 0; i < imagesToProcess.length; i++) {
+            const imgData = imagesToProcess[i];
+            bulkProgressText.innerText = `${i + 1} / ${imagesToProcess.length} 枚目を解析中...`;
+            
+            try {
+                const base64Data = imgData.split(',')[1];
+                const result = await processSingleFileInBackground(base64Data, 'image/jpeg');
+                
+                if (result) {
+                    const newTransaction = {
+                        id: (Date.now() + i).toString(),
+                        storeName: result.storeName || "連続スキャン店舗",
+                        date: result.date || new Date().toISOString().split('T')[0],
+                        total: result.total || 0,
+                        items: result.items || []
+                    };
+                    transactions.unshift(newTransaction);
+                    successCount++;
+                }
+            } catch (err) {
+                console.error(`Bulk WebRTC snap item ${i} failed:`, err);
+            }
+            
+            const percent = ((i + 1) / imagesToProcess.length) * 100;
+            bulkProgressBar.style.width = `${percent}%`;
+        }
+        
+        localStorage.setItem('receipt_transactions', JSON.stringify(transactions));
+        
+        bulkProgressContainer.style.display = 'none';
+        resetScannerState();
+        updateDashboard();
+        
+        showToast(`${successCount}件のレシートをカメラから一括登録しました！`, 'success');
+    }
+}
+
+// -----------------------------------------------------------
 
 // Process Multiple Image files
 async function processFiles(files) {
@@ -949,6 +1129,7 @@ function calculateTotalFromItems() {
     receiptTotal.value = sum;
 }
 
+// Reset scan UI state
 function resetScannerState() {
     dropzone.style.display = 'block';
     scannerContainer.style.display = 'none';
@@ -959,6 +1140,7 @@ function resetScannerState() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+// Edit existing transaction
 function editTransaction(id) {
     const txn = transactions.find(t => t.id === id);
     if (!txn) return;
@@ -970,6 +1152,7 @@ function editTransaction(id) {
     scannerContainer.style.display = 'none';
 }
 
+// Save active transaction to localStorage
 function saveCurrentTransaction() {
     const store = receiptStore.value.trim();
     const date = receiptDate.value;
@@ -1038,6 +1221,7 @@ function deleteTransaction(id) {
     updateDashboard();
 }
 
+// Load transaction history from localStorage
 function loadTransactions() {
     const saved = localStorage.getItem('receipt_transactions');
     if (saved) {
@@ -1071,7 +1255,6 @@ function updateDashboard() {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth(); // 0-11
     
-    // Filter transactions to selected month
     const monthlyTxns = transactions.filter(t => {
         const tDate = new Date(t.date);
         return tDate.getFullYear() === year && tDate.getMonth() === month;
@@ -1083,17 +1266,12 @@ function updateDashboard() {
     const monthlyTotalSum = monthlyTxns.reduce((acc, curr) => acc + curr.total, 0);
     totalExpensesVals.forEach(v => v.innerText = `¥${monthlyTotalSum.toLocaleString()}`);
     
-    // Budget Calculations (Summed items budget vs actual monthly sum)
     const activeBudgetCats = getActiveBudgetForMonth(currentMonth);
     const overallBudget = Object.values(activeBudgetCats).reduce((acc, curr) => acc + curr, 0);
     
-    // Update budget bars on both dashboard/analytics instances
     updateOverallBudgetBars(monthlyTotalSum, overallBudget);
-    
-    // Render Calendar
     renderCalendarGrid(monthlyTxns);
 
-    // Filter history list
     let filteredHistoryTxns = monthlyTxns;
     if (activeFilterDate) {
         filteredHistoryTxns = monthlyTxns.filter(t => t.date === activeFilterDate);
@@ -1103,7 +1281,6 @@ function updateDashboard() {
         filterActiveBadge.style.display = 'none';
     }
 
-    // Render History List UI
     if (filteredHistoryTxns.length === 0) {
         historyEmptyState.style.display = 'flex';
         const items = historyList.querySelectorAll('.history-item');
@@ -1146,7 +1323,6 @@ function updateDashboard() {
             historyList.appendChild(historyItem);
         });
         
-        // Bind events
         historyList.querySelectorAll('.delete-txn-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -1168,7 +1344,6 @@ function updateDashboard() {
         lucide.createIcons();
     }
     
-    // Sync Category distribution charts
     updateCategoryCharts(monthlyTxns);
 }
 
@@ -1220,7 +1395,6 @@ function renderCalendarGrid(monthlyTxns) {
     
     const totalDays = new Date(year, month + 1, 0).getDate();
     
-    // Map transactions to dates and group them for popover detail extraction
     const spendMap = {};
     const txnMap = {};
     
@@ -1231,7 +1405,6 @@ function renderCalendarGrid(monthlyTxns) {
         txnMap[dateStr].push(t);
     });
 
-    // Add empty cells for starting offset days
     for (let i = 0; i < startOffset; i++) {
         const emptyCell = document.createElement('div');
         emptyCell.className = 'calendar-day empty';
@@ -1270,12 +1443,10 @@ function renderCalendarGrid(monthlyTxns) {
             <span class="calendar-day-amount" title="${amountText}">${amountText}</span>
         `;
         
-        // Single Date Details Modal popover on click
         dayCell.addEventListener('click', () => {
             const dayTxns = txnMap[dateStr] || [];
             openDayModal(dateStr, spent, dayTxns);
             
-            // Apply dashboard filter state silently in background for sync
             if (spent > 0) {
                 activeFilterDate = isFiltered ? null : dateStr;
                 updateDashboard();
@@ -1297,7 +1468,6 @@ function updateAnalyticsView() {
         return tDate.getFullYear() === year && tDate.getMonth() === month;
     });
 
-    // 1. Draw/Update Line Chart (Daily Spending Trend)
     const dailySpend = Array(lastDay).fill(0);
     monthlyTxns.forEach(t => {
         const dateObj = new Date(t.date);
@@ -1349,7 +1519,6 @@ function updateAnalyticsView() {
         });
     }
 
-    // 2. Render Category Budgets vs Spendings Table
     const activeBudgetCats = getActiveBudgetForMonth(currentMonth);
     const catSpends = { food: 0, utilities: 0, shopping: 0, entertainment: 0, others: 0 };
     
@@ -1401,7 +1570,6 @@ function updateAnalyticsView() {
         tableBody.appendChild(tr);
     });
 
-    // 3. Render Top 5 Expensive Items Purchased
     const allItems = [];
     monthlyTxns.forEach(t => {
         t.items.forEach(item => {
@@ -1415,7 +1583,6 @@ function updateAnalyticsView() {
         });
     });
 
-    // Sort descending by item price
     allItems.sort((a, b) => b.price - a.price);
     const top5 = allItems.slice(0, 5);
 
@@ -1447,15 +1614,13 @@ function updateAnalyticsView() {
         });
     }
 
-    // Sync distribution doughnuts on analytics view
     updateCategoryCharts(monthlyTxns);
 }
 
-// Chart.js Category doughnut init (Runs for all categoryChartCanvas classes)
+// Chart.js Category doughnut init
 function initCharts() {
     const canvases = document.querySelectorAll('.categoryChartCanvas');
-    
-    categoryCharts = []; // Reset chart array
+    categoryCharts = [];
     
     canvases.forEach(canvas => {
         const ctx = canvas.getContext('2d');
@@ -1546,7 +1711,7 @@ function updateCategoryCharts(monthlyTxns = []) {
 // Export budget data as CSV
 function exportToCsv() {
     if (transactions.length === 0) {
-        showToast('エ保存された家計簿データがありません。', 'error');
+        showToast('保存された家計簿データがありません。', 'error');
         return;
     }
 
