@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartReceipt - AIレシート解析家計簿</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Chart.js for beautiful charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons for premium visual icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="logo">
+                <i data-lucide="receipt"></i> Smart<span>Receipt</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div id="apiKeyStatus" class="api-key-badge disconnected">
+                    <i data-lucide="info"></i> デモモード
+                </div>
+                <button class="btn btn-secondary" id="exportCsvBtn" style="padding: 8px 16px;">
+                    <i data-lucide="download"></i> CSV出力
+                </button>
+                <button class="btn btn-secondary" id="openSettingsBtn" style="padding: 8px 16px;">
+                    <i data-lucide="settings"></i> 設定
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Workspace -->
+        <div class="app-grid">
+            
+            <!-- Left Side: Scanner & Editor -->
+            <div style="display: flex; flex-direction: column; gap: 20px;">
+                
+                <!-- Upload / Image Input Card -->
+                <div class="upload-card glass-panel" id="dropzone">
+                    <input type="file" id="fileInput" class="file-input" accept="image/*" capture="environment" multiple>
+                    <div class="upload-icon">
+                        <i data-lucide="aperture"></i>
+                    </div>
+                    <div class="upload-text">
+                        <h3>レシートをスキャン</h3>
+                        <p>画像を複数選択・撮影してドラッグ＆ドロップ（一括解析に対応）</p>
+                    </div>
+                </div>
+
+                <!-- Bulk Scanning Progress Container -->
+                <div class="glass-panel" id="bulkProgressContainer" style="display: none; padding: 20px;">
+                    <h4 style="margin-bottom: 10px; font-family: var(--font-heading); font-size: 15px; display: flex; align-items: center; gap: 8px;">
+                        <div class="spinner" style="border-top-color: var(--primary);"></div>
+                        <span>レシートを一括解析中...</span>
+                    </h4>
+                    <div style="background: rgba(255,255,255,0.05); height: 8px; border-radius: 4px; overflow: hidden; margin-bottom: 8px;">
+                        <div id="bulkProgressBar" style="background: var(--primary); height: 100%; width: 0%; transition: width 0.3s ease;"></div>
+                    </div>
+                    <div id="bulkProgressText" style="font-size: 12px; color: var(--text-muted);">0 / 0 枚完了</div>
+                </div>
+
+                <!-- Live Scanner View -->
+                <div class="scanner-container glass-panel" id="scannerContainer" style="display: none;">
+                    <img id="scannedImage" class="scanner-image" src="" alt="Scanned Receipt">
+                    <div class="scan-overlay"></div>
+                    <div class="scan-line"></div>
+                    <div class="scanning-status" id="scanningStatus">
+                        <div class="spinner"></div>
+                        <span>AIがレシートを読み取っています...</span>
+                    </div>
+                </div>
+
+                <!-- Interactive Receipt Editor (Displays after scan) -->
+                <div class="editor-panel glass-panel" id="editorPanel" style="display: none;">
+                    <h3 class="panel-title" id="editorTitle">
+                        <i data-lucide="edit-3" style="color: var(--primary)"></i> 解析結果の確認・編集
+                    </h3>
+                    
+                    <div class="form-group-grid">
+                        <div class="form-group">
+                            <label for="receiptStore">店舗名</label>
+                            <input type="text" id="receiptStore" placeholder="店舗名を入力">
+                        </div>
+                        <div class="form-group">
+                            <label for="receiptDate">日付</label>
+                            <input type="date" id="receiptDate">
+                        </div>
+                        <div class="form-group">
+                            <label for="receiptTotal">合計金額 (¥)</label>
+                            <input type="number" id="receiptTotal" placeholder="合計金額" style="font-weight: 700; color: #FFF;">
+                        </div>
+                    </div>
+
+                    <!-- Items Table -->
+                    <label>品目内訳 (各商品ごとにカテゴリを設定できます)</label>
+                    <div class="items-list-container">
+                        <div class="items-header">
+                            <div>品名</div>
+                            <div>カテゴリ</div>
+                            <div>価格 (¥)</div>
+                            <div></div>
+                        </div>
+                        <div id="itemsList">
+                            <!-- Dynamic Item Rows Go Here -->
+                        </div>
+                        <button class="btn btn-secondary btn-add-item" id="addItemBtn">
+                            <i data-lucide="plus"></i> 品目を追加
+                        </button>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="editor-actions">
+                        <button class="btn btn-secondary" id="cancelEditBtn">キャンセル</button>
+                        <button class="btn btn-primary" id="saveReceiptBtn">
+                            <i data-lucide="check"></i> 家計簿に登録
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Side: Dashboard Stats, Graphs & History -->
+            <div class="dashboard-panel glass-panel">
+                
+                <!-- Month Selector & Budget Config -->
+                <div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <button class="btn btn-secondary btn-icon" id="prevMonthBtn" style="padding: 6px;" title="前月へ">
+                                <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i>
+                            </button>
+                            <span id="currentMonthYearLabel" style="font-family: var(--font-heading); font-weight: 600; font-size: 16px;">2026年05月</span>
+                            <button class="btn btn-secondary btn-icon" id="nextMonthBtn" style="padding: 6px;" title="翌月へ">
+                                <i data-lucide="chevron-right" style="width: 16px; height: 16px;"></i>
+                            </button>
+                        </div>
+                        <!-- Budget Input -->
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <label for="monthlyBudgetInput" style="text-transform: none; font-size: 11px; margin-bottom: 0;">月間予算: </label>
+                            <input type="number" id="monthlyBudgetInput" value="50000" style="width: 90px; padding: 4px 8px; font-weight: 600; text-align: right;">
+                            <span style="font-size: 12px; color: var(--text-muted);">円</span>
+                        </div>
+                    </div>
+
+                    <!-- Budget Progress Bar -->
+                    <div style="background: rgba(11, 15, 25, 0.3); border: 1px solid var(--card-border); padding: 12px; border-radius: var(--radius-sm);">
+                        <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 6px;">
+                            <span id="budgetPercentLabel" style="color: var(--text-muted);">消化率: 0%</span>
+                            <span id="budgetRemainingLabel" style="color: var(--text-muted);">残高: ¥50,000</span>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.05); height: 8px; border-radius: 4px; overflow: hidden;">
+                            <div id="budgetProgressBar" style="background: linear-gradient(90deg, var(--primary) 0%, #8B5CF6 100%); height: 100%; width: 0%; transition: width 0.3s ease;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats Summary -->
+                <div class="dashboard-stats">
+                    <div class="stat-card">
+                        <label>今月の支出合計</label>
+                        <div class="stat-val expense" id="totalExpensesVal">¥0</div>
+                    </div>
+                    <div class="stat-card">
+                        <label>登録レシート数</label>
+                        <div class="stat-val" id="receiptCountVal">0 件</div>
+                    </div>
+                </div>
+
+                <!-- Daily Spend Calendar -->
+                <div>
+                    <h3 class="panel-title" style="border-bottom: none; margin-bottom: 10px; font-size: 16px;">
+                        <i data-lucide="calendar" style="color: var(--accent); width: 18px; height: 18px;"></i> 日別支出カレンダー
+                    </h3>
+                    <div style="background: rgba(11, 15, 25, 0.2); border: 1px solid var(--card-border); padding: 10px; border-radius: var(--radius-sm);">
+                        <div style="display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-size: 10px; color: var(--text-muted); font-weight: 700; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid var(--card-border);">
+                            <div style="color: #EF4444;">日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div style="color: #3B82F6;">土</div>
+                        </div>
+                        <div id="calendarGrid" class="calendar-grid">
+                            <!-- Dynamically generated calendar days -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div class="chart-section">
+                    <h3 class="panel-title" style="border-bottom: none; margin-bottom: 0; font-size: 16px;">
+                        <i data-lucide="pie-chart" style="color: var(--primary); width: 18px; height: 18px;"></i> カテゴリ別支出割合
+                    </h3>
+                    <div class="chart-container">
+                        <canvas id="categoryChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- History Section -->
+                <div class="history-section">
+                    <h3 class="panel-title" style="border-bottom: none; margin-bottom: 0; font-size: 16px; display: flex; justify-content: space-between; align-items: center;">
+                        <span><i data-lucide="history" style="color: var(--text-muted); width: 18px; height: 18px;"></i> 最近の登録履歴</span>
+                        <span id="filterActiveBadge" class="badge" style="background: rgba(16, 185, 129, 0.15); color: var(--accent); display: none;">フィルタ適用中</span>
+                    </h3>
+                    
+                    <div class="history-list" id="historyList">
+                        <!-- Dynamic History items go here -->
+                        <div class="empty-state" id="historyEmptyState">
+                            <div class="empty-icon"><i data-lucide="folder-open"></i></div>
+                            <p>登録されたレシートはありません</p>
+                            <p style="font-size: 11px;">左側からレシート画像を選んで登録してください。</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+    <!-- API Key Settings Modal -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 class="modal-title">API設定</h3>
+                <button class="close-btn" id="closeSettingsBtn">&times;</button>
+            </div>
+            <div class="form-group" style="margin-bottom: 20px;">
+                <label for="apiKeyInput" style="margin-bottom: 8px;">Gemini API キー</label>
+                <input type="password" id="apiKeyInput" placeholder="AI_zaSy..." style="width: 100%;">
+                <p style="font-size: 11px; color: var(--text-muted); margin-top: 8px; line-height: 1.4;">
+                    ※ APIキーはブラウザの `localStorage` にのみ安全に保存されます。<br>
+                    ※ キーを入力すると、本物のレシートスキャン機能（無料）が有効になります。<br>
+                    ※ キーがない状態でも、ダミーのデモデータで動作検証が可能です。<br>
+                    <a href="https://aistudio.google.com/" target="_blank" style="color: var(--primary); text-decoration: underline;">Google AI Studio で無料のAPIキーを取得する</a>
+                </p>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button class="btn btn-secondary" id="clearApiKeyBtn">キーを削除</button>
+                <button class="btn btn-primary" id="saveApiKeyBtn">保存する</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toasts -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        // Initialize Lucide icons on page load
+        lucide.createIcons();
+    </script>
+    <script src="app.js"></script>
+</body>
+</html>
