@@ -235,37 +235,196 @@ function initTabNavigation() {
 }
 
 // 10. Month Select Navigation
+let pickerSelectedYear = new Date().getFullYear();
+
 function initMonthSelector() {
     qsa('.prevMonthBtn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            currentMonth.setMonth(currentMonth.getMonth() - 1);
+        btn.addEventListener('click', (e) => {
+            const viewId = e.currentTarget.closest('.view-panel')?.id;
+            if (viewId === 'analyticsView') {
+                if (analyticsPeriod === 'quarter') {
+                    // Go back 1 quarter (3 months)
+                    currentMonth.setMonth(currentMonth.getMonth() - 3);
+                } else if (analyticsPeriod === 'year') {
+                    // Go back 1 year
+                    currentMonth.setFullYear(currentMonth.getFullYear() - 1);
+                } else {
+                    // Go back 1 month
+                    currentMonth.setMonth(currentMonth.getMonth() - 1);
+                }
+            } else {
+                // Dashboard is always monthly
+                currentMonth.setMonth(currentMonth.getMonth() - 1);
+            }
             activeFilterDate = null;
             refreshCurrentTabState();
         });
     });
+    
     qsa('.nextMonthBtn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            currentMonth.setMonth(currentMonth.getMonth() + 1);
+        btn.addEventListener('click', (e) => {
+            const viewId = e.currentTarget.closest('.view-panel')?.id;
+            if (viewId === 'analyticsView') {
+                if (analyticsPeriod === 'quarter') {
+                    // Go forward 1 quarter (3 months)
+                    currentMonth.setMonth(currentMonth.getMonth() + 3);
+                } else if (analyticsPeriod === 'year') {
+                    // Go forward 1 year
+                    currentMonth.setFullYear(currentMonth.getFullYear() + 1);
+                } else {
+                    // Go forward 1 month
+                    currentMonth.setMonth(currentMonth.getMonth() + 1);
+                }
+            } else {
+                // Dashboard is always monthly
+                currentMonth.setMonth(currentMonth.getMonth() + 1);
+            }
             activeFilterDate = null;
             refreshCurrentTabState();
         });
     });
+
+    qsa('.currentMonthYearLabel-wrapper').forEach(wrapper => {
+        wrapper.addEventListener('click', (e) => {
+            const viewId = e.currentTarget.closest('.view-panel')?.id;
+            openCustomMonthPicker(viewId);
+        });
+    });
+
+    // Custom Picker Year Controls
+    if (el('pickerPrevYearBtn')) {
+        el('pickerPrevYearBtn').addEventListener('click', () => {
+            pickerSelectedYear--;
+            updateCustomPickerYearLabel();
+            const activeView = qs('.view-panel.active');
+            const viewId = activeView ? activeView.id : 'dashboardView';
+            openCustomMonthPicker(viewId);
+        });
+    }
+    if (el('pickerNextYearBtn')) {
+        el('pickerNextYearBtn').addEventListener('click', () => {
+            pickerSelectedYear++;
+            updateCustomPickerYearLabel();
+            const activeView = qs('.view-panel.active');
+            const viewId = activeView ? activeView.id : 'dashboardView';
+            openCustomMonthPicker(viewId);
+        });
+    }
+
     updateMonthLabel();
 }
 
 function updateMonthLabel() {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth() + 1;
-    const labelText = `${year}年${String(month).padStart(2, '0')}月`;
-    qsa('.currentMonthYearLabel').forEach(span => {
-        span.textContent = labelText;
-    });
     
-    // Synchronize month picker values
-    const pickerValue = `${year}-${String(month).padStart(2, '0')}`;
-    qsa('.month-picker').forEach(input => {
-        input.value = pickerValue;
-    });
+    // 1. Dashboard month label (always monthly)
+    const dbLabel = qs('#dashboardView .currentMonthYearLabel');
+    if (dbLabel) {
+        dbLabel.textContent = `${year}年${String(month).padStart(2, '0')}月`;
+    }
+    
+    // 2. Analytics month label (depends on analyticsPeriod)
+    const analyticsLabel = qs('#analyticsView .currentMonthYearLabel');
+    if (analyticsLabel) {
+        if (analyticsPeriod === 'month') {
+            analyticsLabel.textContent = `${year}年${String(month).padStart(2, '0')}月`;
+        } else if (analyticsPeriod === 'quarter') {
+            const q = Math.ceil(month / 3);
+            analyticsLabel.textContent = `${year}年 Q${q}`;
+        } else if (analyticsPeriod === 'year') {
+            analyticsLabel.textContent = `${year}年`;
+        }
+    }
+}
+
+function openCustomMonthPicker(viewId) {
+    pickerSelectedYear = currentMonth.getFullYear();
+    updateCustomPickerYearLabel();
+    
+    const grid = qs('#monthPickerModal .month-picker-grid');
+    if (!grid) return;
+    
+    if (viewId === 'analyticsView' && analyticsPeriod === 'quarter') {
+        // Quarter Picker
+        grid.style.gridTemplateColumns = 'repeat(2, 1fr)';
+        grid.innerHTML = '';
+        const quarters = [
+            { label: 'Q1 (1-3月)', monthVal: 0 },
+            { label: 'Q2 (4-6月)', monthVal: 3 },
+            { label: 'Q3 (7-9月)', monthVal: 6 },
+            { label: 'Q4 (10-12月)', monthVal: 9 }
+        ];
+        
+        const activeQ = Math.ceil((currentMonth.getMonth() + 1) / 3) - 1;
+        
+        quarters.forEach((q, idx) => {
+            const btn = document.createElement('button');
+            btn.className = `month-picker-btn ${idx === activeQ && pickerSelectedYear === currentMonth.getFullYear() ? 'active' : ''}`;
+            btn.textContent = q.label;
+            btn.addEventListener('click', () => {
+                currentMonth = new Date(pickerSelectedYear, q.monthVal, 1);
+                activeFilterDate = null;
+                refreshCurrentTabState();
+                closeModal('monthPickerModal');
+            });
+            grid.appendChild(btn);
+        });
+    } else if (viewId === 'analyticsView' && analyticsPeriod === 'year') {
+        // Year Picker
+        grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
+        grid.innerHTML = '';
+        const currentYear = new Date().getFullYear();
+        const startY = currentYear - 5;
+        const endY = currentYear + 3;
+        
+        for (let y = startY; y <= endY; y++) {
+            const btn = document.createElement('button');
+            btn.className = `month-picker-btn ${y === currentMonth.getFullYear() ? 'active' : ''}`;
+            btn.textContent = `${y}年`;
+            btn.addEventListener('click', () => {
+                currentMonth = new Date(y, 0, 1);
+                activeFilterDate = null;
+                refreshCurrentTabState();
+                closeModal('monthPickerModal');
+            });
+            grid.appendChild(btn);
+        }
+    } else {
+        // Month Picker (Default Dashboard)
+        grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
+        grid.innerHTML = '';
+        
+        for (let m = 0; m < 12; m++) {
+            const btn = document.createElement('button');
+            btn.className = `month-picker-btn ${m === currentMonth.getMonth() && pickerSelectedYear === currentMonth.getFullYear() ? 'active' : ''}`;
+            btn.textContent = `${m + 1}月`;
+            btn.addEventListener('click', () => {
+                currentMonth = new Date(pickerSelectedYear, m, 1);
+                activeFilterDate = null;
+                refreshCurrentTabState();
+                closeModal('monthPickerModal');
+            });
+            grid.appendChild(btn);
+        }
+    }
+    
+    // Hide year selector if year picker is shown
+    const yearSelector = qs('#monthPickerModal .month-picker-year-selector');
+    if (yearSelector) {
+        if (viewId === 'analyticsView' && analyticsPeriod === 'year') {
+            yearSelector.style.display = 'none';
+        } else {
+            yearSelector.style.display = 'flex';
+        }
+    }
+    
+    openModal('monthPickerModal');
+}
+
+function updateCustomPickerYearLabel() {
+    const label = el('pickerYearLabel');
+    if (label) label.textContent = `${pickerSelectedYear}年`;
 }
 
 function refreshCurrentTabState() {
@@ -782,6 +941,7 @@ function cancelEditor() {
     showDashboardSubpanel('dropzone');
     if (el('fileInput')) el('fileInput').value = '';
 }
+window.cancelEditor = cancelEditor;
 
 function addEditorItemRow(name = '', price = 0, discount = 0, category = 'others') {
     const container = el('itemsList');
@@ -1318,15 +1478,16 @@ function updateAnalyticsView() {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth() + 1;
     
+    // Navigator should always stay visible in Analytics to allow navigating quarters and years
     const navPanel = el('analyticsMonthNav');
     if (navPanel) {
-        if (analyticsPeriod === 'month') navPanel.style.display = 'flex';
-        else navPanel.style.display = 'none';
+        navPanel.style.display = 'flex';
     }
     
     let labels = [];
     let titleStr = '';
     let datasetTxns = [];
+    let tableAndRankingTxns = [];
     
     if (analyticsPeriod === 'month') {
         titleStr = `${year}年${String(month).padStart(2, '0')}月 の詳細内訳`;
@@ -1335,21 +1496,30 @@ function updateAnalyticsView() {
             labels.push(`${i}日`);
         }
         datasetTxns = getMonthlyResolvedTransactions(year, month);
+        tableAndRankingTxns = datasetTxns;
     } else if (analyticsPeriod === 'quarter') {
         const quarterIndex = Math.ceil(month / 3);
-        titleStr = `${year}年 Q${quarterIndex} (第${quarterIndex}四半期) の推移`;
+        titleStr = `${year}年 Q${quarterIndex} (第${quarterIndex}四半期) の集計と推移`;
         labels = [`Q1 (1-3月)`, `Q2 (4-6月)`, `Q3 (7-9月)`, `Q4 (10-12月)`];
         
-        // Fetch all year data
+        // Fetch all year data for the stacked bar trend chart
         for (let m = 1; m <= 12; m++) {
             datasetTxns = datasetTxns.concat(getMonthlyResolvedTransactions(year, m));
         }
+        
+        // Filter table/rankings to only the selected quarter
+        const startMonthOfQuarter = (quarterIndex - 1) * 3 + 1;
+        const quarterMonths = [startMonthOfQuarter, startMonthOfQuarter + 1, startMonthOfQuarter + 2];
+        quarterMonths.forEach(m => {
+            tableAndRankingTxns.push(...getMonthlyResolvedTransactions(year, m));
+        });
     } else if (analyticsPeriod === 'year') {
-        titleStr = `${year}年 年間支出の推移`;
+        titleStr = `${year}年 年間支出の集計と推移`;
         for (let m = 1; m <= 12; m++) {
             labels.push(`${m}月`);
             datasetTxns = datasetTxns.concat(getMonthlyResolvedTransactions(year, m));
         }
+        tableAndRankingTxns = datasetTxns;
     }
     
     if (el('trendChartTitle')) el('trendChartTitle').textContent = titleStr;
@@ -1426,7 +1596,7 @@ function updateAnalyticsView() {
         tableBody.innerHTML = '';
         const catTotals = {};
         catKeys.forEach(k => catTotals[k] = 0);
-        datasetTxns.forEach(t => t.items.forEach(i => catTotals[i.category || 'others'] += i.price));
+        tableAndRankingTxns.forEach(t => t.items.forEach(i => catTotals[i.category || 'others'] += i.price));
         
         let activeBudget = getBudgetForPeriod(analyticsPeriod, currentMonth);
         const sortedCats = catKeys.map(k => ({ key: k, spent: catTotals[k] })).sort((a, b) => b.spent - a.spent);
@@ -1456,8 +1626,8 @@ function updateAnalyticsView() {
     }
     
     // Rankings lists updates
-    renderRankings(datasetTxns);
-    updateShareCharts(datasetTxns);
+    renderRankings(tableAndRankingTxns);
+    updateShareCharts(tableAndRankingTxns);
 }
 
 function renderRankings(datasetTxns) {
@@ -1956,7 +2126,6 @@ function setupEventListeners() {
     
     // 5. Editor Buttons
     if (el('addItemBtn')) el('addItemBtn').addEventListener('click', () => addEditorItemRow('', 0, 0, 'others'));
-    if (el('cancelEditBtn')) el('cancelEditBtn').addEventListener('click', cancelEditor);
     if (el('saveReceiptBtn')) el('saveReceiptBtn').addEventListener('click', saveCurrentTransaction);
     if (el('receiptTax')) el('receiptTax').addEventListener('input', calculateTotalFromItems);
     
@@ -1986,20 +2155,4 @@ function setupEventListeners() {
             updateAnalyticsView();
         });
     });
-
-    // 11. Month Picker Event Handlers (Native Month Select wheel)
-    qsa('.month-picker').forEach(picker => {
-        picker.addEventListener('change', (e) => {
-            const val = e.target.value;
-            if (val) {
-                const [y, m] = val.split('-');
-                currentMonth = new Date(parseInt(y), parseInt(m) - 1, 1);
-                activeFilterDate = null;
-                refreshCurrentTabState();
-            }
-        });
-    });
-
-    // 12. Editor Modal Close Buttons
-    if (el('closeEditorBtn')) el('closeEditorBtn').addEventListener('click', cancelEditor);
 }

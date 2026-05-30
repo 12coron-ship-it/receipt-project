@@ -83,9 +83,9 @@
           <div class="month-nav-row">
             <div class="month-nav-controls">
               <button class="btn btn-secondary btn-icon prevMonthBtn" title="前月へ"><i data-lucide="chevron-left"></i></button>
-              <span class="currentMonthYearLabel-wrapper" style="position:relative; display:inline-flex; align-items:center; cursor:pointer;">
+              <span class="currentMonthYearLabel-wrapper">
                 <span class="currentMonthYearLabel">2026年05月</span>
-                <input type="month" class="month-picker" style="position:absolute; inset:0; opacity:0; width:100%; cursor:pointer;">
+                <i data-lucide="chevron-down" style="width:14px; height:14px; margin-left:4px; opacity:0.7;"></i>
               </span>
               <button class="btn btn-secondary btn-icon nextMonthBtn" title="翌月へ"><i data-lucide="chevron-right"></i></button>
             </div>
@@ -173,9 +173,9 @@
         </div>
         <div class="month-nav-controls" id="analyticsMonthNav">
           <button class="btn btn-secondary btn-icon prevMonthBtn"><i data-lucide="chevron-left"></i></button>
-          <span class="currentMonthYearLabel-wrapper" style="position:relative; display:inline-flex; align-items:center; cursor:pointer;">
+          <span class="currentMonthYearLabel-wrapper">
             <span class="currentMonthYearLabel">2026年05月</span>
-            <input type="month" class="month-picker" style="position:absolute; inset:0; opacity:0; width:100%; cursor:pointer;">
+            <i data-lucide="chevron-down" style="width:14px; height:14px; margin-left:4px; opacity:0.7;"></i>
           </span>
           <button class="btn btn-secondary btn-icon nextMonthBtn"><i data-lucide="chevron-right"></i></button>
         </div>
@@ -375,7 +375,7 @@
   <div class="modal-card" style="max-width:600px;">
     <div class="modal-header">
       <h3 class="modal-title" id="editorTitle"><i data-lucide="edit-3" style="color:var(--primary)"></i> 解析結果の確認・編集</h3>
-      <button class="close-btn" id="closeEditorBtn">&times;</button>
+      <button class="close-btn" id="closeEditorBtn" onclick="cancelEditor()">&times;</button>
     </div>
     <div class="form-group-grid">
       <div class="form-group">
@@ -408,8 +408,29 @@
       <button class="btn btn-secondary btn-add-item" id="addItemBtn"><i data-lucide="plus"></i> 品目を追加</button>
     </div>
     <div class="modal-footer" style="gap:12px;">
-      <button class="btn btn-secondary" id="cancelEditBtn">キャンセル</button>
+      <button class="btn btn-secondary" id="cancelEditBtn" onclick="cancelEditor()">キャンセル</button>
       <button class="btn btn-primary" id="saveReceiptBtn"><i data-lucide="check"></i> 家計簿に登録</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL 5: CUSTOM MONTH/YEAR PICKER -->
+<div class="modal-overlay" id="monthPickerModal">
+  <div class="modal-card" style="max-width:360px;">
+    <div class="modal-header">
+      <h3 class="modal-title">表示年月の選択</h3>
+      <button class="close-btn" id="closeMonthPickerBtn" onclick="closeModal('monthPickerModal')">&times;</button>
+    </div>
+    <div class="month-picker-year-selector" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+      <button class="btn btn-secondary" id="pickerPrevYearBtn" style="padding: 6px 12px;">◀</button>
+      <span id="pickerYearLabel" style="font-family:var(--font-heading); font-weight:700; font-size:1.2rem;">2026年</span>
+      <button class="btn btn-secondary" id="pickerNextYearBtn" style="padding: 6px 12px;">▶</button>
+    </div>
+    <div class="month-picker-grid" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:15px;">
+      <!-- Dynamic months grid -->
+    </div>
+    <div class="modal-footer" style="padding-top:10px;">
+      <button class="btn btn-secondary" onclick="closeModal('monthPickerModal')" style="width:100%;">閉じる</button>
     </div>
   </div>
 </div>
