@@ -1,140 +1,55 @@
-// App State Management
-let transactions = [];
-let budgets = [];
-let recurringExpenses = []; // Holds subscription/fixed cost items
-
-let categoryCharts = []; // Holds category doughnut charts (dashboard and analytics)
-let dailyTrendChartInstance = null; // Holds daily spending trend (Line or Bar chart on Analytics)
-
-let currentScannedData = null;
-let editingTransactionId = null; // ID of transaction being edited
-let editingBudgetPeriodId = null; // ID of budget period being edited
-let editingRecurringId = null; // ID of recurring expense being edited
-
-let currentMonth = new Date(); // Active viewing month
-let activeFilterDate = null; // Calendar filter date string "YYYY-MM-DD"
-let analyticsPeriod = "month"; // "month", "quarter", "year"
-
-// 16 Categories (Grouped logically by concept, food & dining close together)
+// Constants
 const categoryMeta = {
-    // 1. Food group
-    food: { label: "食費", class: "food", color: "#F59E0B" },
-    dining: { label: "外食費", class: "dining", color: "#EF4444" },
-    luxuries: { label: "嗜好品", class: "luxuries", color: "#EC4899" },
-    // 2. Daily items group
-    shopping: { label: "日用品・買い物", class: "shopping", color: "#10B981" },
-    clothing: { label: "衣服", class: "clothing", color: "#3B82F6" },
-    furniture: { label: "家具・家電", class: "furniture", color: "#8B5CF6" },
-    // 3. Fixed / Housing costs group
-    utilities: { label: "水道光熱・通信", class: "utilities", color: "#06B6D4" },
-    mortgage: { label: "住宅ローン・家賃", class: "mortgage", color: "#6366F1" },
-    insurance: { label: "保険料", class: "insurance", color: "#14B8A6" },
-    // 4. Life & Care group
-    medical: { label: "医療費", class: "medical", color: "#F43F5E" },
-    education: { label: "教育", class: "education", color: "#A855F7" },
-    transport: { label: "交通費", class: "transport", color: "#3B82F6" },
-    social: { label: "交際費", class: "social", color: "#EC4899" },
-    entertainment: { label: "娯楽・趣味", class: "entertainment", color: "#8B5CF6" },
-    // 5. Special and others
-    special: { label: "特別費", class: "special", color: "#D97706" }, // Occasional big spends
-    others: { label: "その他", class: "others", color: "#6B7280" }
+    food: { label: '食費', class: 'food', color: '#F59E0B' },
+    dining: { label: '外食費', class: 'dining', color: '#EF4444' },
+    luxuries: { label: '嗜好品', class: 'luxuries', color: '#EC4899' },
+    shopping: { label: '日用品・買い物', class: 'shopping', color: '#10B981' },
+    clothing: { label: '衣服', class: 'clothing', color: '#3B82F6' },
+    furniture: { label: '家具・家電', class: 'furniture', color: '#8B5CF6' },
+    utilities: { label: '水道光熱・通信', class: 'utilities', color: '#06B6D4' },
+    mortgage: { label: '住宅ローン・家賃', class: 'mortgage', color: '#6366F1' },
+    insurance: { label: '保険料', class: 'insurance', color: '#14B8A6' },
+    medical: { label: '医療費', class: 'medical', color: '#F43F5E' },
+    education: { label: '教育', class: 'education', color: '#A855F7' },
+    transport: { label: '交通費', class: 'transport', color: '#3B82F6' },
+    social: { label: '交際費', class: 'social', color: '#EC4899' },
+    entertainment: { label: '娯楽・趣味', class: 'entertainment', color: '#8B5CF6' },
+    special: { label: '特別費', class: 'special', color: '#D97706' },
+    others: { label: 'その他', class: 'others', color: '#6B7280' }
 };
 
-// WebRTC Camera State
+const mockReceipts = [
+    { storeName: 'セブンイレブン 渋谷店', date: '', total: 1280, items: [{name: 'おにぎり 鮭', price: 160, category: 'food'}, {name: 'サンドイッチ', price: 320, category: 'food'}, {name: '緑茶 500ml', price: 150, category: 'food'}, {name: '週刊誌', price: 450, category: 'entertainment'}, {name: '電池 単3', price: 200, category: 'shopping'}] },
+    { storeName: 'イオンモール 幕張', date: '', total: 4580, items: [{name: 'Tシャツ', price: 1990, category: 'clothing'}, {name: 'トイレットペーパー', price: 398, category: 'shopping'}, {name: '洗剤', price: 298, category: 'shopping'}, {name: 'お菓子詰め合わせ', price: 598, category: 'food'}, {name: 'ノート 3冊セット', price: 296, category: 'shopping'}, {name: 'USB充電ケーブル', price: 1000, category: 'furniture'}] },
+    { storeName: 'スターバックス 新宿', date: '', total: 1740, items: [{name: 'カフェラテ Grande', price: 490, category: 'dining'}, {name: 'キャラメルフラペチーノ', price: 590, category: 'dining'}, {name: 'チョコレートケーキ', price: 440, category: 'dining'}, {name: 'ドリップコーヒー', price: 220, category: 'dining'}] },
+    { storeName: 'ドン・キホーテ 池袋', date: '', total: 3250, items: [{name: 'プロテイン 1kg', price: 2480, category: 'food'}, {name: 'エナジードリンク 6本', price: 770, category: 'luxuries'}] },
+    { storeName: 'ユニクロ 銀座店', date: '', total: 5970, items: [{name: 'フリースジャケット', price: 2990, category: 'clothing'}, {name: 'ヒートテック 2枚組', price: 1990, category: 'clothing'}, {name: '靴下 3足セット', price: 990, category: 'clothing'}] }
+];
+
+// Global State
+let transactions = [];
+let budgets = [];
+let recurringExpenses = [];
+let categoryCharts = [];
+let trendChartInstance = null;
+let currentScannedData = null;
+let editingTransactionId = null;
+let editingBudgetPeriodId = null;
+let editingRecurringId = null;
+let currentMonth = new Date();
+let activeFilterDate = null;
+let analyticsPeriod = 'month';
 let cameraStream = null;
 let capturedImages = [];
 
-// DOM Elements
-const dropzone = document.getElementById('dropzone');
-const fileInput = document.getElementById('fileInput');
-const bulkProgressContainer = document.getElementById('bulkProgressContainer');
-const bulkProgressBar = document.getElementById('bulkProgressBar');
-const bulkProgressText = document.getElementById('bulkProgressText');
+let apiKey = '';
 
-const scannerContainer = document.getElementById('scannerContainer');
-const scannedImage = document.getElementById('scannedImage');
-const editorPanel = document.getElementById('editorPanel');
-const editorTitle = document.getElementById('editorTitle');
-const itemsList = document.getElementById('itemsList');
-const addItemBtn = document.getElementById('addItemBtn');
+// Helper for DOM IDs
+const el = (id) => document.getElementById(id);
+const qsa = (sel) => document.querySelectorAll(sel);
+const qs = (sel) => document.querySelector(sel);
 
-const receiptStore = document.getElementById('receiptStore');
-const receiptDate = document.getElementById('receiptDate');
-const receiptTotal = document.getElementById('receiptTotal');
-
-const saveReceiptBtn = document.getElementById('saveReceiptBtn');
-const cancelEditBtn = document.getElementById('cancelEditBtn');
-
-// Dashboard elements
-const currentMonthYearLabels = document.querySelectorAll('.currentMonthYearLabel');
-const prevMonthBtns = document.querySelectorAll('.prevMonthBtn');
-const nextMonthBtns = document.querySelectorAll('.nextMonthBtn');
-const budgetPercentLabels = document.querySelectorAll('.budgetPercentLabel');
-const budgetRemainingLabels = document.querySelectorAll('.budgetRemainingLabel');
-const budgetProgressBars = document.querySelectorAll('.budgetProgressBar');
-
-const totalExpensesVals = document.querySelectorAll('.totalExpensesVal');
-const receiptCountVals = document.querySelectorAll('.receiptCountVal');
-const calendarGrid = document.querySelector('.calendarGrid');
-const historyList = document.querySelector('.historyList');
-const historyEmptyState = document.querySelector('.historyEmptyState');
-const filterActiveBadge = document.querySelector('.filterActiveBadge');
-
-const openSettingsBtn = document.getElementById('openSettingsBtn');
-const closeSettingsBtn = document.getElementById('closeSettingsBtn');
-const settingsModal = document.getElementById('settingsModal');
-const apiKeyInput = document.getElementById('apiKeyInput');
-const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
-const clearApiKeyBtn = document.getElementById('clearApiKeyBtn');
-const apiKeyStatus = document.getElementById('apiKeyStatus');
-const toastContainer = document.getElementById('toastContainer');
-
-// Day Detail Modal Elements
-const dayDetailModal = document.getElementById('dayDetailModal');
-const closeDayDetailBtn = document.getElementById('closeDayDetailBtn');
-const closeDayDetailModalBtn = document.getElementById('closeDayDetailModalBtn');
-const dayDetailTitle = document.getElementById('dayDetailTitle');
-const dayDetailTotalSum = document.getElementById('dayDetailTotalSum');
-const dayDetailItemsList = document.getElementById('dayDetailItemsList');
-
-// Budget View Elements
-const budgetStartDate = document.getElementById('budgetStartDate');
-const budgetEndDate = document.getElementById('budgetEndDate');
-const saveBudgetBtn = document.getElementById('saveBudgetBtn');
-const resetBudgetFormBtn = document.getElementById('resetBudgetFormBtn');
-const budgetPeriodsList = document.getElementById('budgetPeriodsList');
-const budgetFormTitle = document.getElementById('budgetFormTitle');
-const budgetInputsContainer = document.getElementById('budgetInputsContainer');
-
-// Recurring Expenses Elements
-const recurringName = document.getElementById('recurringName');
-const recurringAmount = document.getElementById('recurringAmount');
-const recurringCategory = document.getElementById('recurringCategory');
-const recurringStartDate = document.getElementById('recurringStartDate');
-const recurringEndDate = document.getElementById('recurringEndDate');
-const saveRecurringBtn = document.getElementById('saveRecurringBtn');
-const resetRecurringFormBtn = document.getElementById('resetRecurringFormBtn');
-const recurringPeriodsList = document.getElementById('recurringPeriodsList');
-const recurringFormTitle = document.getElementById('recurringFormTitle');
-
-// In-App WebRTC Camera Elements
-const startCameraBtn = document.getElementById('startCameraBtn');
-const cameraViewOverlay = document.getElementById('cameraViewOverlay');
-const cameraVideo = document.getElementById('cameraVideo');
-const closeCameraBtn = document.getElementById('closeCameraBtn');
-const shutterBtn = document.getElementById('shutterBtn');
-const cameraFlash = document.getElementById('cameraFlash');
-const capturedThumbsContainer = document.getElementById('capturedThumbsContainer');
-const processCapturedBtn = document.getElementById('processCapturedBtn');
-
-// Manual Input Button
-const manualInputBtn = document.getElementById('manualInputBtn');
-
-// CSV Import Elements
-const importCsvBtn = document.getElementById('importCsvBtn');
-const csvFileInput = document.getElementById('csvFileInput');
-
-// Initialize the Application
+// 1. App State & Initialization
 document.addEventListener('DOMContentLoaded', () => {
     loadApiKey();
     loadTransactions();
@@ -145,2242 +60,1420 @@ document.addEventListener('DOMContentLoaded', () => {
     initTabNavigation();
     initMonthSelector();
     initCharts();
-    updateDashboard(); // Redraws Dashboard and updates Active view
     setupEventListeners();
+    updateDashboard();
+
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
 });
 
-// Toast helper
+// 2. Toast Notifications
 function showToast(message, type = 'info') {
+    const container = el('toastContainer');
+    if (!container) return;
     const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    toast.innerHTML = message;
-    toastContainer.appendChild(toast);
-    
+    toast.className = `p-4 rounded shadow-lg text-white font-bold transition-opacity duration-300 ${type === 'error' ? 'bg-red-500' : 'bg-green-500'}`;
+    toast.innerText = message;
+    container.appendChild(toast);
     setTimeout(() => {
-        toast.style.animation = 'slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) reverse forwards';
+        toast.style.opacity = '0';
         setTimeout(() => toast.remove(), 300);
     }, 3000);
 }
 
-// Load API Key
+// 3. API Key Management
 function loadApiKey() {
-    const savedKey = localStorage.getItem('gemini_api_key');
-    if (savedKey) {
-        apiKeyInput.value = savedKey;
-        apiKeyStatus.className = 'api-key-badge connected';
-        apiKeyStatus.innerHTML = '<i data-lucide="check-circle-2"></i> AI連携中';
-    } else {
-        apiKeyStatus.className = 'api-key-badge disconnected';
-        apiKeyStatus.innerHTML = '<i data-lucide="info"></i> デモモード';
-    }
-    lucide.createIcons();
+    apiKey = localStorage.getItem('gemini_api_key') || '';
+    if (el('apiKeyInput')) el('apiKeyInput').value = apiKey;
+    updateApiKeyStatus();
 }
-
 function saveApiKey() {
-    const key = apiKeyInput.value.trim();
-    if (key) {
-        localStorage.setItem('gemini_api_key', key);
-        showToast('APIキーを保存しました。実機レシートスキャンが有効です。', 'success');
-    } else {
-        localStorage.removeItem('gemini_api_key');
-        showToast('APIキーが空欄のためデモモードに移行しました。', 'info');
-    }
-    loadApiKey();
-    closeModal();
+    const key = el('apiKeyInput').value.trim();
+    localStorage.setItem('gemini_api_key', key);
+    apiKey = key;
+    updateApiKeyStatus();
+    showToast('APIキーを保存しました', 'success');
 }
-
 function clearApiKey() {
     localStorage.removeItem('gemini_api_key');
-    apiKeyInput.value = '';
-    loadApiKey();
-    showToast('APIキーを消去しました。デモモードに戻ります。', 'info');
-    closeModal();
+    apiKey = '';
+    if (el('apiKeyInput')) el('apiKeyInput').value = '';
+    updateApiKeyStatus();
+    showToast('APIキーを削除しました', 'info');
 }
-
-// Modal handling
-function openModal() {
-    settingsModal.classList.add('active');
+function updateApiKeyStatus() {
+    const status = el('apiKeyStatus');
+    if (!status) return;
+    if (apiKey) {
+        status.innerHTML = '<span class="text-green-600 bg-green-100 px-2 py-1 rounded text-sm font-bold">接続済み</span>';
+    } else {
+        status.innerHTML = '<span class="text-red-600 bg-red-100 px-2 py-1 rounded text-sm font-bold">未接続</span>';
+    }
 }
+function openSettingsModal() { if(el('settingsModal')) el('settingsModal').classList.remove('hidden'); }
+function closeSettingsModal() { if(el('settingsModal')) el('settingsModal').classList.add('hidden'); }
 
-function closeModal() {
-    settingsModal.classList.remove('active');
-}
-
-// Build 16 Category Inputs for Budgets View dynamically
+// 4. Budget Input Builder
 function buildBudgetInputs() {
-    budgetInputsContainer.innerHTML = '';
-    Object.keys(categoryMeta).forEach(key => {
-        const meta = categoryMeta[key];
+    const container = el('budgetInputsContainer');
+    if (!container) return;
+    container.innerHTML = '';
+    Object.entries(categoryMeta).forEach(([key, meta]) => {
         const row = document.createElement('div');
-        row.className = 'form-group';
-        row.style.display = 'grid';
-        row.style.gridTemplateColumns = '1fr 1.5fr';
-        row.style.alignItems = 'center';
-        row.style.gap = '15px';
+        row.className = 'flex items-center justify-between mb-2';
         row.innerHTML = `
-            <span class="badge ${meta.class}" style="font-size: 11px; padding: 6px 12px; text-align: center;">${meta.label}</span>
-            <input type="number" class="budget-cat-input" data-category="${key}" placeholder="0" value="0">
+            <label class="text-sm text-gray-700 w-1/3">${meta.label}</label>
+            <div class="w-2/3 flex items-center">
+                <input type="number" data-category="${key}" class="budget-cat-input w-full p-2 border rounded" placeholder="0" min="0">
+                <span class="ml-2 text-gray-500">円</span>
+            </div>
         `;
-        budgetInputsContainer.appendChild(row);
+        container.appendChild(row);
     });
 }
-
-// Build Category Dropdown list for Recurring panel dynamically
 function buildRecurringCategorySelect() {
-    recurringCategory.innerHTML = '';
-    Object.keys(categoryMeta).forEach(key => {
-        const meta = categoryMeta[key];
+    const select = el('recurringCategory');
+    if (!select) return;
+    select.innerHTML = '<option value="">カテゴリを選択</option>';
+    Object.entries(categoryMeta).forEach(([key, meta]) => {
         const option = document.createElement('option');
         option.value = key;
-        option.innerText = meta.label;
-        recurringCategory.appendChild(option);
+        option.textContent = meta.label;
+        select.appendChild(option);
     });
 }
 
-// SPA Tab Navigation Init
+// 5. SPA Tab Navigation
 function initTabNavigation() {
-    const tabs = document.querySelectorAll('.nav-tab');
-    const panels = document.querySelectorAll('.view-panel');
-    
+    const tabs = qsa('.nav-tab');
     tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            const targetTab = tab.getAttribute('data-tab');
+        tab.addEventListener('click', (e) => {
+            tabs.forEach(t => {
+                t.classList.remove('active', 'text-blue-600', 'border-blue-600');
+                t.classList.add('text-gray-500', 'border-transparent');
+            });
+            e.currentTarget.classList.add('active', 'text-blue-600', 'border-blue-600');
+            e.currentTarget.classList.remove('text-gray-500', 'border-transparent');
             
-            tabs.forEach(t => t.classList.remove('active'));
-            panels.forEach(p => p.classList.remove('active'));
-            
-            tab.classList.add('active');
-            document.getElementById(`${targetTab}View`).classList.add('active');
-            
-            if (targetTab === 'analytics') {
-                updateAnalyticsView();
-            } else if (targetTab === 'budgets') {
-                renderBudgetsList();
-                renderRecurringList();
-            } else if (targetTab === 'dashboard') {
-                updateDashboard();
+            const targetId = e.currentTarget.getAttribute('data-target');
+            qsa('.view-panel').forEach(panel => {
+                panel.classList.remove('active');
+                panel.classList.add('hidden');
+            });
+            const targetPanel = el(targetId);
+            if (targetPanel) {
+                targetPanel.classList.add('active');
+                targetPanel.classList.remove('hidden');
             }
             
-            lucide.createIcons();
+            if (targetId === 'analytics') {
+                updateAnalyticsView();
+            } else if (targetId === 'budgets') {
+                renderBudgetsList();
+                renderRecurringList();
+            } else if (targetId === 'dashboard') {
+                updateDashboard();
+            }
         });
     });
 }
 
-// Month Selector Initialization
+// 6. Month Selector
 function initMonthSelector() {
-    updateMonthLabel();
-    
-    prevMonthBtns.forEach(btn => {
+    qsa('.prevMonthBtn').forEach(btn => {
         btn.addEventListener('click', () => {
             currentMonth.setMonth(currentMonth.getMonth() - 1);
             activeFilterDate = null;
-            updateMonthLabel();
-            
-            const activeTab = document.querySelector('.nav-tab.active').getAttribute('data-tab');
-            if (activeTab === 'analytics') {
-                updateAnalyticsView();
-            } else {
-                updateDashboard();
-            }
+            refreshCurrentView();
         });
     });
-    
-    nextMonthBtns.forEach(btn => {
+    qsa('.nextMonthBtn').forEach(btn => {
         btn.addEventListener('click', () => {
             currentMonth.setMonth(currentMonth.getMonth() + 1);
             activeFilterDate = null;
-            updateMonthLabel();
-            
-            const activeTab = document.querySelector('.nav-tab.active').getAttribute('data-tab');
-            if (activeTab === 'analytics') {
-                updateAnalyticsView();
-            } else {
-                updateDashboard();
-            }
+            refreshCurrentView();
         });
     });
+    updateMonthLabel();
 }
-
 function updateMonthLabel() {
     const year = currentMonth.getFullYear();
-    const month = String(currentMonth.getMonth() + 1).padStart(2, '0');
-    currentMonthYearLabels.forEach(label => {
-        label.innerText = `${year}年${month}月`;
+    const month = currentMonth.getMonth() + 1;
+    const label = `${year}年${month}月`;
+    qsa('.currentMonthYearLabel').forEach(labelEl => {
+        labelEl.textContent = label;
     });
 }
-
-// Load Budgets list from Storage
-function loadBudgets() {
-    const saved = localStorage.getItem('receipt_budgets');
-    if (saved) {
-        try {
-            budgets = JSON.parse(saved);
-        } catch (e) {
-            budgets = [];
-        }
-    } else {
-        const today = new Date();
-        const start = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-        const end = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
-        budgets = [{
-            id: 'default-budget-id',
-            startDate: start,
-            endDate: end,
-            categories: { food: 30000, utilities: 15000, shopping: 10000, entertainment: 5000, others: 5000 }
-        }];
-        localStorage.setItem('receipt_budgets', JSON.stringify(budgets));
+function refreshCurrentView() {
+    updateMonthLabel();
+    const activePanel = qs('.view-panel.active');
+    if (activePanel) {
+        if (activePanel.id === 'dashboard') updateDashboard();
+        if (activePanel.id === 'analytics') updateAnalyticsView();
     }
 }
 
-// Save Budget Period Config
+// 7. Budget Period Management
+function loadBudgets() {
+    const stored = localStorage.getItem('receipt_budgets');
+    if (stored) {
+        budgets = JSON.parse(stored);
+    } else {
+        budgets = [];
+    }
+}
+function saveBudgetsToStorage() {
+    localStorage.setItem('receipt_budgets', JSON.stringify(budgets));
+}
 function saveBudgetPeriod() {
-    const startMonthVal = budgetStartDate.value;
-    const endMonthVal = budgetEndDate.value;
-    
-    if (!startMonthVal || !endMonthVal) {
-        showToast('開始月と終了月を選択してください。', 'error');
+    const startInput = el('budgetStartDate').value;
+    if (!startInput) {
+        showToast('開始月を選択してください', 'error');
         return;
     }
     
-    if (startMonthVal > endMonthVal) {
-        showToast('開始月は終了月以前の月を入力してください。', 'error');
-        return;
-    }
-
-    // Convert start month to YYYY-MM-01
-    const start = `${startMonthVal}-01`;
+    // Convert YYYY-MM to YYYY-MM-01 and YYYY-MM-[lastday]
+    const [y, m] = startInput.split('-');
+    const startDate = `${y}-${m}-01`;
+    const endDay = new Date(y, m, 0).getDate();
+    const endDate = `${y}-${m}-${endDay}`;
     
-    // Convert end month to YYYY-MM-[last day]
-    const parts = endMonthVal.split('-');
-    const year = parseInt(parts[0]);
-    const month = parseInt(parts[1]);
-    const lastDay = new Date(year, month, 0).getDate();
-    const end = `${endMonthVal}-${String(lastDay).padStart(2, '0')}`;
-
-    // Read all input values dynamically
     const categories = {};
-    const inputs = budgetInputsContainer.querySelectorAll('.budget-cat-input');
-    inputs.forEach(input => {
+    qsa('.budget-cat-input').forEach(input => {
         const cat = input.getAttribute('data-category');
-        categories[cat] = parseInt(input.value) || 0;
+        const val = parseInt(input.value) || 0;
+        if (val > 0) categories[cat] = val;
     });
 
     if (editingBudgetPeriodId) {
-        const idx = budgets.findIndex(b => b.id === editingBudgetPeriodId);
-        if (idx !== -1) {
-            budgets[idx] = {
-                id: editingBudgetPeriodId,
-                startDate: start,
-                endDate: end,
-                categories: categories
-            };
-            showToast('予算設定を更新しました！', 'success');
+        const index = budgets.findIndex(b => b.id === editingBudgetPeriodId);
+        if (index > -1) {
+            budgets[index] = { ...budgets[index], startDate, endDate, categories };
+            showToast('予算を更新しました', 'success');
         }
-        editingBudgetPeriodId = null;
-        budgetFormTitle.innerHTML = `<i data-lucide="plus-circle" style="color: var(--accent);"></i> 予算期間の新規作成`;
     } else {
         const newBudget = {
-            id: Date.now().toString(),
-            startDate: start,
-            endDate: end,
-            categories: categories
+            id: 'b-' + Date.now().toString(),
+            startDate,
+            endDate,
+            categories
         };
-        budgets.unshift(newBudget);
-        showToast('新しい予算を設定しました！', 'success');
+        budgets.push(newBudget);
+        showToast('予算を作成しました', 'success');
     }
-
-    localStorage.setItem('receipt_budgets', JSON.stringify(budgets));
+    
+    saveBudgetsToStorage();
     resetBudgetForm();
     renderBudgetsList();
+    if (qs('.view-panel.active')?.id === 'dashboard') updateDashboard();
 }
-
-function resetBudgetForm() {
-    budgetStartDate.value = '';
-    budgetEndDate.value = '';
-    const inputs = budgetInputsContainer.querySelectorAll('.budget-cat-input');
-    inputs.forEach(input => input.value = 0);
-    editingBudgetPeriodId = null;
-    budgetFormTitle.innerHTML = `<i data-lucide="plus-circle" style="color: var(--accent);"></i> 予算期間の新規作成`;
-}
-
 function editBudgetPeriod(id) {
     const b = budgets.find(x => x.id === id);
     if (!b) return;
-
     editingBudgetPeriodId = id;
-    budgetStartDate.value = b.startDate.substring(0, 7);
-    budgetEndDate.value = b.endDate.substring(0, 7);
+    if (el('budgetFormTitle')) el('budgetFormTitle').textContent = '予算を編集';
     
-    // Fill inputs dynamically
-    const inputs = budgetInputsContainer.querySelectorAll('.budget-cat-input');
-    inputs.forEach(input => {
-        const cat = input.getAttribute('data-category');
-        input.value = b.categories[cat] || 0;
-    });
-    
-    budgetFormTitle.innerHTML = `<i data-lucide="edit-3" style="color: var(--primary);"></i> 予算期間の編集`;
-    document.getElementById('budgetFormTitle').scrollIntoView({ behavior: 'smooth' });
-    lucide.createIcons();
-}
-
-function deleteBudgetPeriod(id) {
-    budgets = budgets.filter(b => b.id !== id);
-    localStorage.setItem('receipt_budgets', JSON.stringify(budgets));
-    showToast('予算設定を削除しました。', 'info');
-    renderBudgetsList();
-}
-
-function renderBudgetsList() {
-    budgetPeriodsList.innerHTML = '';
-    
-    if (budgets.length === 0) {
-        budgetPeriodsList.innerHTML = `
-            <div class="empty-state">
-                <div class="empty-icon"><i data-lucide="info"></i></div>
-                <p>設定された予算期間はありません</p>
-            </div>
-        `;
-        lucide.createIcons();
-        return;
+    if (el('budgetStartDate')) {
+        el('budgetStartDate').value = b.startDate.substring(0, 7);
     }
-
-    budgets.forEach(b => {
-        const sum = Object.values(b.categories).reduce((acc, curr) => acc + curr, 0);
-        const startLabel = b.startDate.substring(0, 7).replace('-', '年') + '月';
-        const endLabel = b.endDate.substring(0, 7).replace('-', '年') + '月';
+    
+    qsa('.budget-cat-input').forEach(input => {
+        const cat = input.getAttribute('data-category');
+        input.value = b.categories[cat] || '';
+    });
+}
+function deleteBudgetPeriod(id) {
+    if(!confirm('この予算を削除しますか？')) return;
+    budgets = budgets.filter(b => b.id !== id);
+    saveBudgetsToStorage();
+    renderBudgetsList();
+    if (qs('.view-panel.active')?.id === 'dashboard') updateDashboard();
+    showToast('予算を削除しました', 'info');
+}
+function resetBudgetForm() {
+    editingBudgetPeriodId = null;
+    if (el('budgetFormTitle')) el('budgetFormTitle').textContent = '新しい予算期間を作成';
+    if (el('budgetStartDate')) el('budgetStartDate').value = '';
+    qsa('.budget-cat-input').forEach(i => i.value = '');
+}
+function renderBudgetsList() {
+    const list = el('budgetPeriodsList');
+    if (!list) return;
+    list.innerHTML = '';
+    
+    const sorted = [...budgets].sort((a, b) => b.startDate.localeCompare(a.startDate));
+    
+    sorted.forEach(b => {
+        const total = Object.values(b.categories).reduce((sum, val) => sum + val, 0);
+        const startStr = b.startDate.substring(0, 7).replace('-', '年') + '月';
         
         const card = document.createElement('div');
-        card.className = 'glass-panel budget-period-card';
+        card.className = 'bg-white p-4 rounded shadow border border-gray-200 flex justify-between items-center mb-2';
         card.innerHTML = `
-            <div class="budget-period-header">
-                <div class="budget-period-dates">
-                    <i data-lucide="calendar-range" style="color: var(--primary); width:18px;"></i>
-                    <span>${startLabel} 〜 ${endLabel}</span>
-                </div>
-                <div>
-                    <button class="btn btn-icon edit-budget-btn" data-id="${b.id}" title="編集">
-                        <i data-lucide="edit-2" style="width:14px;"></i>
-                    </button>
-                    <button class="btn btn-icon delete-budget-btn" data-id="${b.id}" title="削除">
-                        <i data-lucide="trash-2" style="width:14px;"></i>
-                    </button>
-                </div>
+            <div>
+                <h4 class="font-bold">${startStr}</h4>
+                <p class="text-sm text-gray-600">合計: ${total.toLocaleString()}円 (${Object.keys(b.categories).length}カテゴリ)</p>
             </div>
-            <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px;">合計予算: ¥${sum.toLocaleString()}</div>
-            <div class="budget-category-grid">
-                <!-- Render top active budgets list (non zero) -->
-                ${Object.keys(b.categories).map(catKey => {
-                    const amt = b.categories[catKey] || 0;
-                    if (amt === 0) return '';
-                    const meta = categoryMeta[catKey] || categoryMeta.others;
-                    return `
-                        <div class="budget-cat-pill">
-                            <span class="budget-cat-label">${meta.label}</span>
-                            <span class="budget-cat-amount">¥${amt.toLocaleString()}</span>
-                        </div>
-                    `;
-                }).join('')}
+            <div class="flex gap-2">
+                <button class="edit-budget-btn p-2 text-blue-600 hover:bg-blue-50 rounded" data-id="${b.id}"><i data-lucide="edit-2"></i></button>
+                <button class="delete-budget-btn p-2 text-red-600 hover:bg-red-50 rounded" data-id="${b.id}"><i data-lucide="trash-2"></i></button>
             </div>
         `;
-        budgetPeriodsList.appendChild(card);
+        list.appendChild(card);
     });
-
-    budgetPeriodsList.querySelectorAll('.edit-budget-btn').forEach(btn => {
-        btn.addEventListener('click', () => editBudgetPeriod(btn.getAttribute('data-id')));
-    });
-
-    budgetPeriodsList.querySelectorAll('.delete-budget-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            if (confirm('この予算設定を削除しますか？')) {
-                deleteBudgetPeriod(btn.getAttribute('data-id'));
-            }
-        });
-    });
-
-    lucide.createIcons();
+    
+    qsa('.edit-budget-btn').forEach(btn => btn.addEventListener('click', (e) => editBudgetPeriod(e.currentTarget.getAttribute('data-id'))));
+    qsa('.delete-budget-btn').forEach(btn => btn.addEventListener('click', (e) => deleteBudgetPeriod(e.currentTarget.getAttribute('data-id'))));
+    
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+function getActiveBudgetForMonth(date) {
+    const yyyymm = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const targetDateStr = `${yyyymm}-15`;
+    const active = budgets.find(b => b.startDate <= targetDateStr && b.endDate >= targetDateStr);
+    return active ? active.categories : {};
 }
 
-// ----------------- Recurring Expenses Data Logic -----------------
-
+// 8. Recurring Expenses Management
 function loadRecurringExpenses() {
-    const saved = localStorage.getItem('receipt_recurring');
-    if (saved) {
-        try {
-            recurringExpenses = JSON.parse(saved);
-        } catch (e) {
-            recurringExpenses = [];
-        }
+    const stored = localStorage.getItem('receipt_recurring');
+    if (stored) {
+        recurringExpenses = JSON.parse(stored);
     } else {
         recurringExpenses = [];
     }
 }
-
-function saveRecurringExpense() {
-    const name = recurringName.value.trim();
-    const amount = parseInt(recurringAmount.value) || 0;
-    const category = recurringCategory.value;
-    const start = recurringStartDate.value;
-    const end = recurringEndDate.value;
-
-    if (!name) {
-        showToast('項目名を入力してください。', 'error');
-        return;
-    }
-    if (amount <= 0) {
-        showToast('有効な金額を入力してください。', 'error');
-        return;
-    }
-    if (!start) {
-        showToast('適用開始日を入力してください。', 'error');
-        return;
-    }
-
-    if (editingRecurringId) {
-        const idx = recurringExpenses.findIndex(r => r.id === editingRecurringId);
-        if (idx !== -1) {
-            recurringExpenses[idx] = {
-                id: editingRecurringId,
-                name: name,
-                amount: amount,
-                category: category,
-                startDate: start,
-                endDate: end || "" // Optional end date
-            };
-            showToast('固定費データを更新しました！', 'success');
-        }
-        editingRecurringId = null;
-        recurringFormTitle.innerHTML = `<i data-lucide="plus-circle" style="color: var(--accent);"></i> 定期支出の新規作成`;
-    } else {
-        const newRecurring = {
-            id: Date.now().toString(),
-            name: name,
-            amount: amount,
-            category: category,
-            startDate: start,
-            endDate: end || ""
-        };
-        recurringExpenses.push(newRecurring);
-        showToast('定期支出を登録しました！', 'success');
-    }
-
+function saveRecurringToStorage() {
     localStorage.setItem('receipt_recurring', JSON.stringify(recurringExpenses));
+}
+function saveRecurringExpense() {
+    const name = el('recurringName').value.trim();
+    const amount = parseInt(el('recurringAmount').value) || 0;
+    const category = el('recurringCategory').value;
+    const startDate = el('recurringStartDate').value;
+    const endDate = el('recurringEndDate') ? el('recurringEndDate').value : '';
+    
+    if (!name || amount <= 0 || !category || !startDate) {
+        showToast('必須項目を入力してください', 'error');
+        return;
+    }
+    
+    if (editingRecurringId) {
+        const index = recurringExpenses.findIndex(r => r.id === editingRecurringId);
+        if (index > -1) {
+            recurringExpenses[index] = { ...recurringExpenses[index], name, amount, category, startDate, endDate };
+            showToast('定期支出を更新しました', 'success');
+        }
+    } else {
+        recurringExpenses.push({
+            id: 'r-' + Date.now().toString(),
+            name, amount, category, startDate, endDate
+        });
+        showToast('定期支出を作成しました', 'success');
+    }
+    
+    saveRecurringToStorage();
     resetRecurringForm();
     renderRecurringList();
-    updateDashboard(); // Redraw budget calculations
+    if (qs('.view-panel.active')?.id === 'dashboard') updateDashboard();
 }
-
-function resetRecurringForm() {
-    recurringName.value = '';
-    recurringAmount.value = '';
-    recurringStartDate.value = '';
-    recurringEndDate.value = '';
-    recurringCategory.value = 'food';
-    editingRecurringId = null;
-    recurringFormTitle.innerHTML = `<i data-lucide="plus-circle" style="color: var(--accent);"></i> 定期支出の新規作成`;
-}
-
 function editRecurring(id) {
     const r = recurringExpenses.find(x => x.id === id);
     if (!r) return;
-
     editingRecurringId = id;
-    recurringName.value = r.name;
-    recurringAmount.value = r.amount;
-    recurringCategory.value = r.category;
-    recurringStartDate.value = r.startDate;
-    recurringEndDate.value = r.endDate || '';
-    
-    recurringFormTitle.innerHTML = `<i data-lucide="edit-3" style="color: var(--primary);"></i> 定期支出の編集`;
-    document.getElementById('recurringFormTitle').scrollIntoView({ behavior: 'smooth' });
-    lucide.createIcons();
+    if (el('recurringFormTitle')) el('recurringFormTitle').textContent = '定期支出を編集';
+    el('recurringName').value = r.name;
+    el('recurringAmount').value = r.amount;
+    el('recurringCategory').value = r.category;
+    el('recurringStartDate').value = r.startDate;
+    if (el('recurringEndDate')) el('recurringEndDate').value = r.endDate || '';
 }
-
 function deleteRecurring(id) {
+    if(!confirm('この定期支出を削除しますか？')) return;
     recurringExpenses = recurringExpenses.filter(r => r.id !== id);
-    localStorage.setItem('receipt_recurring', JSON.stringify(recurringExpenses));
-    showToast('定期支出設定を削除しました。', 'info');
+    saveRecurringToStorage();
     renderRecurringList();
-    updateDashboard();
+    if (qs('.view-panel.active')?.id === 'dashboard') updateDashboard();
+    showToast('定期支出を削除しました', 'info');
 }
-
+function resetRecurringForm() {
+    editingRecurringId = null;
+    if (el('recurringFormTitle')) el('recurringFormTitle').textContent = '新しい定期支出';
+    el('recurringName').value = '';
+    el('recurringAmount').value = '';
+    el('recurringCategory').value = '';
+    el('recurringStartDate').value = '';
+    if (el('recurringEndDate')) el('recurringEndDate').value = '';
+}
 function renderRecurringList() {
-    recurringPeriodsList.innerHTML = '';
+    const list = el('recurringPeriodsList');
+    if (!list) return;
+    list.innerHTML = '';
     
-    if (recurringExpenses.length === 0) {
-        recurringPeriodsList.innerHTML = `
-            <div class="empty-state">
-                <div class="empty-icon"><i data-lucide="info"></i></div>
-                <p>登録された固定費はありません</p>
-            </div>
-        `;
-        lucide.createIcons();
-        return;
-    }
-
     recurringExpenses.forEach(r => {
-        const meta = categoryMeta[r.category] || categoryMeta.others;
-        const endText = r.endDate ? r.endDate : "期限なし";
+        const catLabel = categoryMeta[r.category] ? categoryMeta[r.category].label : '不明';
         const card = document.createElement('div');
-        card.className = 'glass-panel budget-period-card';
+        card.className = 'bg-white p-4 rounded shadow border border-gray-200 flex justify-between items-center mb-2';
         card.innerHTML = `
-            <div class="budget-period-header">
-                <div class="budget-period-dates">
-                    <strong style="font-size: 14px; color: #FFF;">${r.name}</strong>
-                </div>
-                <div>
-                    <button class="btn btn-icon edit-rec-btn" data-id="${r.id}" title="編集">
-                        <i data-lucide="edit-2" style="width:14px;"></i>
-                    </button>
-                    <button class="btn btn-icon delete-rec-btn" data-id="${r.id}" title="削除">
-                        <i data-lucide="trash-2" style="width:14px;"></i>
-                    </button>
-                </div>
+            <div>
+                <h4 class="font-bold">${r.name} <span class="text-xs bg-gray-200 px-2 py-1 rounded ml-2">${catLabel}</span></h4>
+                <p class="text-sm text-gray-600">${r.amount.toLocaleString()}円/月 (開始: ${r.startDate})</p>
             </div>
-            <div style="display:flex; justify-content:space-between; align-items:center; font-size: 13px;">
-                <span class="badge ${meta.class}">${meta.label}</span>
-                <strong style="color: var(--accent); font-size:15px;">¥${r.amount.toLocaleString()} / 月</strong>
-            </div>
-            <div style="font-size: 10px; color: var(--text-muted); margin-top: 8px;">
-                適用期間: ${r.startDate} 〜 ${endText}
+            <div class="flex gap-2">
+                <button class="edit-recur-btn p-2 text-blue-600 hover:bg-blue-50 rounded" data-id="${r.id}"><i data-lucide="edit-2"></i></button>
+                <button class="delete-recur-btn p-2 text-red-600 hover:bg-red-50 rounded" data-id="${r.id}"><i data-lucide="trash-2"></i></button>
             </div>
         `;
-        recurringPeriodsList.appendChild(card);
-    });
-
-    recurringPeriodsList.querySelectorAll('.edit-rec-btn').forEach(btn => {
-        btn.addEventListener('click', () => editRecurring(btn.getAttribute('data-id')));
-    });
-
-    recurringPeriodsList.querySelectorAll('.delete-rec-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            if (confirm('この定期支出を削除しますか？')) {
-                deleteRecurring(btn.getAttribute('data-id'));
-            }
-        });
-    });
-
-    lucide.createIcons();
-}
-
-// Find budget covering currently viewed month
-function getActiveBudgetForMonth(date) {
-    const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
-    const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-
-    const match = budgets.find(b => {
-        const bStart = new Date(b.startDate);
-        const bEnd = new Date(b.endDate);
-        return bStart <= monthEnd && bEnd >= monthStart;
-    });
-
-    if (match) return match.categories;
-    return {};
-}
-
-// Event Listeners Setup
-function setupEventListeners() {
-    openSettingsBtn.addEventListener('click', openModal);
-    closeSettingsBtn.addEventListener('click', closeModal);
-    settingsModal.addEventListener('click', (e) => {
-        if (e.target === settingsModal) closeModal();
+        list.appendChild(card);
     });
     
-    saveApiKeyBtn.addEventListener('click', saveApiKey);
-    clearApiKeyBtn.addEventListener('click', clearApiKey);
-
-    // CSV export trigger
-    document.getElementById('exportCsvBtn').addEventListener('click', exportToCsv);
+    qsa('.edit-recur-btn').forEach(btn => btn.addEventListener('click', (e) => editRecurring(e.currentTarget.getAttribute('data-id'))));
+    qsa('.delete-recur-btn').forEach(btn => btn.addEventListener('click', (e) => deleteRecurring(e.currentTarget.getAttribute('data-id'))));
     
-    // CSV import triggers
-    importCsvBtn.addEventListener('click', () => csvFileInput.click());
-    csvFileInput.addEventListener('change', importFromCsv);
-
-    // File selection / drag drop
-    dropzone.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', handleFileSelect);
-    
-    dropzone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropzone.classList.add('dragover');
-    });
-    
-    dropzone.addEventListener('dragleave', () => {
-        dropzone.classList.remove('dragover');
-    });
-    
-    dropzone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropzone.classList.remove('dragover');
-        if (e.dataTransfer.files.length > 0) {
-            processFiles(e.dataTransfer.files);
-        }
-    });
-
-    // Editor control
-    addItemBtn.addEventListener('click', () => addReceiptItem('', 0, 'food'));
-    cancelEditBtn.addEventListener('click', resetScannerState);
-    saveReceiptBtn.addEventListener('click', saveCurrentTransaction);
-
-    // Day detail Modal close buttons
-    closeDayDetailBtn.addEventListener('click', closeDayModal);
-    closeDayDetailModalBtn.addEventListener('click', closeDayModal);
-    dayDetailModal.addEventListener('click', (e) => {
-        if (e.target === dayDetailModal) closeDayModal();
-    });
-
-    // Budget Tab control triggers
-    saveBudgetBtn.addEventListener('click', saveBudgetPeriod);
-    resetBudgetFormBtn.addEventListener('click', resetBudgetForm);
-
-    // Recurring Expenses Tab controls
-    saveRecurringBtn.addEventListener('click', saveRecurringExpense);
-    resetRecurringFormBtn.addEventListener('click', resetRecurringForm);
-
-    // Continuous In-App Camera Triggers
-    startCameraBtn.addEventListener('click', startContinuousCamera);
-    closeCameraBtn.addEventListener('click', stopContinuousCamera);
-    shutterBtn.addEventListener('click', captureSnapshot);
-    processCapturedBtn.addEventListener('click', submitCapturedImages);
-
-    // Manual Input Mode trigger
-    manualInputBtn.addEventListener('click', startManualInput);
-
-    // Period aggregator toggles in Analytics view
-    const toggleBtns = document.querySelectorAll('#analyticsPeriodToggle .toggle-btn');
-    toggleBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            toggleBtns.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            analyticsPeriod = btn.getAttribute('data-period');
-            
-            // Show/hide month selector based on period
-            const monthNav = document.getElementById('analyticsMonthNav');
-            if (analyticsPeriod === 'month') {
-                monthNav.style.display = 'flex';
-            } else {
-                monthNav.style.display = 'none';
-            }
-            
-            updateAnalyticsView();
-        });
-    });
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
-// Manual Input Launch
-function startManualInput() {
-    resetScannerState();
-    
-    // スキャンエリアを非表示にし、エディタのみを表示する
-    dropzone.style.display = 'none';
-    scannerContainer.style.display = 'none';
-    
-    editingTransactionId = null;
-    
-    // Blank model
-    const blankData = {
-        storeName: "",
-        date: new Date().toISOString().split('T')[0],
-        total: 0,
-        items: []
-    };
-
-    populateEditor(blankData);
-    
-    // Set focus
-    setTimeout(() => {
-        receiptStore.focus();
-        editorPanel.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
-}
-
-// Day Detail Modal Popover
-function openDayModal(dateStr, spent, dayTxns) {
-    const dateObj = new Date(dateStr);
-    const mStr = dateObj.getMonth() + 1;
-    const dStr = dateObj.getDate();
-    dayDetailTitle.innerText = `${dateObj.getFullYear()}年${mStr}月${dStr}日の支出明細`;
-    dayDetailTotalSum.innerText = `¥${spent.toLocaleString()}`;
-
-    dayDetailItemsList.innerHTML = '';
-    
-    if (dayTxns.length === 0) {
-        dayDetailItemsList.innerHTML = `<p style="text-align:center; color:var(--text-muted);">取引データがありません。</p>`;
-        dayDetailModal.classList.add('active');
-        return;
-    }
-
-    dayTxns.forEach(t => {
-        const storeDiv = document.createElement('div');
-        storeDiv.style.margin = '15px 0 8px 0';
-        storeDiv.style.borderBottom = '1px dashed var(--card-border)';
-        storeDiv.style.paddingBottom = '4px';
-        storeDiv.style.fontSize = '12px';
-        storeDiv.style.fontWeight = '700';
-        storeDiv.style.color = 'var(--primary)';
-        storeDiv.innerText = `${t.storeName}`;
-        dayDetailItemsList.appendChild(storeDiv);
-
-        t.items.forEach(item => {
-            const meta = categoryMeta[item.category] || categoryMeta.others;
-            const itemRow = document.createElement('div');
-            itemRow.className = 'day-item-card';
-            itemRow.innerHTML = `
-                <div class="day-item-details">
-                    <div class="day-item-name">${item.name}</div>
-                    <div class="day-item-meta"><span class="badge ${meta.class}">${meta.label}</span></div>
-                </div>
-                <strong style="color:#FFF;">¥${item.price.toLocaleString()}</strong>
-            `;
-            dayDetailItemsList.appendChild(itemRow);
-        });
-    });
-
-    dayDetailModal.classList.add('active');
-    lucide.createIcons();
-}
-
-function closeDayModal() {
-    dayDetailModal.classList.remove('active');
-}
-
-// File Selection Handler (Support Multiple)
-function handleFileSelect(e) {
-    if (e.target.files.length > 0) {
-        processFiles(e.target.files);
-    }
-}
-
-// ----------------- WebRTC Camera Functions -----------------
-
-async function startContinuousCamera() {
-    const constraints = {
-        video: {
-            facingMode: { ideal: "environment" },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-        },
-        audio: false
-    };
-
-    try {
-        cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
-        cameraVideo.srcObject = cameraStream;
-        cameraViewOverlay.style.display = 'flex';
-        capturedImages = [];
-        updateCameraThumbs();
-        showToast('カメラを起動しました。レシートを撮影してください。', 'info');
-    } catch (err) {
-        console.error('Camera open failed:', err);
-        showToast('カメラの起動に失敗しました。カメラ権限を確認してください。', 'error');
-    }
-}
-
-function stopContinuousCamera() {
-    if (cameraStream) {
-        cameraStream.getTracks().forEach(track => track.stop());
-        cameraStream = null;
-    }
-    cameraVideo.srcObject = null;
-    cameraViewOverlay.style.display = 'none';
-}
-
-function captureSnapshot() {
-    if (!cameraStream) return;
-
-    cameraFlash.classList.add('flash-active');
-    setTimeout(() => cameraFlash.classList.remove('flash-active'), 250);
-
-    const canvas = document.createElement('canvas');
-    const width = cameraVideo.videoWidth || 640;
-    const height = cameraVideo.videoHeight || 480;
-    canvas.width = width;
-    canvas.height = height;
-
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(cameraVideo, 0, 0, width, height);
-
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-    capturedImages.push(dataUrl);
-
-    showToast(`${capturedImages.length}枚目のレシートを撮影しました。`, 'success');
-    updateCameraThumbs();
-}
-
-function updateCameraThumbs() {
-    capturedThumbsContainer.innerHTML = '';
-    
-    capturedImages.forEach((imgData, idx) => {
-        const thumbWrapper = document.createElement('div');
-        thumbWrapper.className = 'captured-thumb-wrapper';
-        
-        thumbWrapper.innerHTML = `
-            <img class="captured-thumb-img" src="${imgData}" alt="Captured Receipt">
-            <button class="captured-thumb-delete" data-index="${idx}">&times;</button>
-        `;
-        
-        thumbWrapper.querySelector('.captured-thumb-delete').addEventListener('click', (e) => {
-            e.stopPropagation();
-            capturedImages.splice(idx, 1);
-            updateCameraThumbs();
-        });
-        
-        capturedThumbsContainer.appendChild(thumbWrapper);
-    });
-
-    capturedThumbsContainer.scrollLeft = capturedThumbsContainer.scrollWidth;
-
-    const count = capturedImages.length;
-    processCapturedBtn.innerHTML = `<i data-lucide="check"></i> 完了 (${count}枚スキャン)`;
-    processCapturedBtn.disabled = count === 0;
-    lucide.createIcons();
-}
-
-async function submitCapturedImages() {
-    if (capturedImages.length === 0) return;
-
-    const imagesToProcess = [...capturedImages];
-    stopContinuousCamera();
-
-    if (imagesToProcess.length === 1) {
-        const base64Data = imagesToProcess[0].split(',')[1];
-        scannedImage.src = imagesToProcess[0];
-        
-        dropzone.style.display = 'none';
-        scannerContainer.style.display = 'flex';
-        scannerContainer.classList.add('scanning');
-        editorPanel.style.display = 'none';
-        editingTransactionId = null;
-
-        performScan(base64Data, 'image/jpeg');
-    } else {
-        dropzone.style.display = 'none';
-        editorPanel.style.display = 'none';
-        scannerContainer.style.display = 'none';
-        bulkProgressContainer.style.display = 'block';
-        
-        bulkProgressBar.style.width = '0%';
-        bulkProgressText.innerText = `0 / ${imagesToProcess.length} 枚完了`;
-        
-        let successCount = 0;
-        
-        for (let i = 0; i < imagesToProcess.length; i++) {
-            const imgData = imagesToProcess[i];
-            bulkProgressText.innerText = `${i + 1} / ${imagesToProcess.length} 枚目を解析中...`;
-            
-            try {
-                const base64Data = imgData.split(',')[1];
-                const result = await processSingleFileInBackground(base64Data, 'image/jpeg');
-                
-                if (result) {
-                    const newTransaction = {
-                        id: (Date.now() + i).toString(),
-                        storeName: result.storeName || "連続スキャン店舗",
-                        date: result.date || new Date().toISOString().split('T')[0],
-                        total: result.total || 0,
-                        items: result.items || []
-                    };
-                    transactions.unshift(newTransaction);
-                    successCount++;
-                }
-            } catch (err) {
-                console.error(`Bulk WebRTC snap item ${i} failed:`, err);
-            }
-            
-            const percent = ((i + 1) / imagesToProcess.length) * 100;
-            bulkProgressBar.style.width = `${percent}%`;
-        }
-        
-        localStorage.setItem('receipt_transactions', JSON.stringify(transactions));
-        
-        bulkProgressContainer.style.display = 'none';
-        resetScannerState();
-        updateDashboard();
-        
-        showToast(`${successCount}件のレシートをカメラから一括登録しました！`, 'success');
-    }
-}
-
-// ----------------- Dynamic Subscriptions Injection helper -----------------
-
-// Returns custom resolved transactions for current month (including injected recurring)
+// 9. Monthly Resolved Transactions
 function getMonthlyResolvedTransactions(year, month) {
-    // 1. Get raw standard transactions matching year/month
-    const list = transactions.filter(t => {
-        const tDate = new Date(t.date);
-        return tDate.getFullYear() === year && tDate.getMonth() === month;
-    });
-
-    const monthStart = new Date(year, month, 1);
-    const monthEnd = new Date(year, month + 1, 0);
-
-    // 2. Loop through all recurring items and inject virtual transactions if active
+    const prefix = `${year}-${String(month).padStart(2, '0')}`;
+    const normalTxns = transactions.filter(t => t.date.startsWith(prefix));
+    
+    const virtualTxns = [];
     recurringExpenses.forEach(r => {
-        const rStart = new Date(r.startDate);
-        const rEnd = r.endDate ? new Date(r.endDate) : null;
+        const targetMonthStr = `${year}-${String(month).padStart(2, '0')}`;
+        const startMonthStr = r.startDate.substring(0, 7);
+        const endMonthStr = r.endDate ? r.endDate.substring(0, 7) : '9999-99';
         
-        // Active if recurring duration overlaps current month
-        if (rStart <= monthEnd && (!rEnd || rEnd >= monthStart)) {
-            // Pick a day for projection (usually the 1st of month or billing date)
-            const billingDay = String(Math.min(monthEnd.getDate(), rStart.getDate())).padStart(2, '0');
-            const mStr = String(month + 1).padStart(2, '0');
-            const billingDateStr = `${year}-${mStr}-${billingDay}`;
-            
-            const virtualTxn = {
-                id: `rec-${r.id}`,
+        if (targetMonthStr >= startMonthStr && targetMonthStr <= endMonthStr) {
+            virtualTxns.push({
+                id: `rec-${r.id}-${year}-${month}`,
                 storeName: `[定期固定] ${r.name}`,
-                date: billingDateStr,
+                date: `${prefix}-01`,
                 total: r.amount,
                 items: [{ name: r.name, price: r.amount, category: r.category }],
-                isRecurring: true // Block editing in main history UI
-            };
-            list.push(virtualTxn);
+                isRecurring: true
+            });
         }
     });
-
-    return list;
+    return [...normalTxns, ...virtualTxns];
 }
 
-// Process Multiple Image files
-async function processFiles(files) {
-    const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
-    
-    if (imageFiles.length === 0) {
-        showToast('画像ファイルを選択してください。', 'error');
-        return;
-    }
-
-    if (imageFiles.length === 1) {
-        const file = imageFiles[0];
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            scannedImage.src = e.target.result;
-            dropzone.style.display = 'none';
-            scannerContainer.style.display = 'flex';
-            scannerContainer.classList.add('scanning');
-            editorPanel.style.display = 'none';
-            editingTransactionId = null; // Clear edit mode
-            
-            const base64Data = e.target.result.split(',')[1];
-            const mimeType = file.type;
-            
-            performScan(base64Data, mimeType);
-        };
-        reader.readAsDataURL(file);
-    } else {
-        dropzone.style.display = 'none';
-        editorPanel.style.display = 'none';
-        scannerContainer.style.display = 'none';
-        bulkProgressContainer.style.display = 'block';
+// 10. File Handling & Bulk Processing
+function handleFileSelect(e) {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+    if (files.length === 1) processSingleFile(files[0]);
+    else processBulkFiles(files);
+    e.target.value = '';
+}
+async function processSingleFile(file) {
+    try {
+        const base64 = await readFileAsBase64(file);
+        if (el('dropzone')) el('dropzone').style.display = 'none';
+        if (el('scannerContainer')) el('scannerContainer').classList.remove('hidden');
+        if (el('scannedImage')) el('scannedImage').src = base64;
         
-        bulkProgressBar.style.width = '0%';
-        bulkProgressText.innerText = `0 / ${imageFiles.length} 枚完了`;
-        
-        let successCount = 0;
-        
-        for (let i = 0; i < imageFiles.length; i++) {
-            const file = imageFiles[i];
-            bulkProgressText.innerText = `${i + 1} / ${imageFiles.length} 枚目を解析中...`;
-            
-            try {
-                const base64Data = await readFileAsBase64(file);
-                const result = await processSingleFileInBackground(base64Data, file.type);
-                
-                if (result) {
-                    const newTransaction = {
-                        id: (Date.now() + i).toString(),
-                        storeName: result.storeName || "一括スキャン店舗",
-                        date: result.date || new Date().toISOString().split('T')[0],
-                        total: result.total || 0,
-                        items: result.items || []
-                    };
-                    
-                    transactions.unshift(newTransaction);
-                    successCount++;
-                }
-            } catch (err) {
-                console.error(`Bulk item ${i} failed:`, err);
-            }
-            
-            const percent = ((i + 1) / imageFiles.length) * 100;
-            bulkProgressBar.style.width = `${percent}%`;
-        }
-        
-        localStorage.setItem('receipt_transactions', JSON.stringify(transactions));
-        
-        bulkProgressContainer.style.display = 'none';
+        const res = await performScan(base64.split(',')[1], file.type);
+        populateEditor(res);
+    } catch (err) {
+        showToast('読み取りエラー: ' + err.message, 'error');
         resetScannerState();
-        updateDashboard();
-        
-        showToast(`${successCount}件のレシートを自動で一括登録しました！`, 'success');
     }
 }
-
-// Promise wrapper to read file as Data URL
+async function processBulkFiles(files) {
+    if (el('bulkProgressContainer')) el('bulkProgressContainer').classList.remove('hidden');
+    let successCount = 0;
+    
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (el('bulkProgressText')) el('bulkProgressText').textContent = `処理中: ${i+1} / ${files.length} (${file.name})`;
+        if (el('bulkProgressBar')) el('bulkProgressBar').style.width = `${((i)/files.length)*100}%`;
+        
+        try {
+            const base64 = await readFileAsBase64(file);
+            const res = await performScan(base64.split(',')[1], file.type);
+            
+            const newTx = {
+                id: 't-' + Date.now().toString() + '-' + i,
+                storeName: res.storeName || '不明な店舗',
+                date: res.date || new Date().toISOString().split('T')[0],
+                total: res.total || 0,
+                items: res.items || []
+            };
+            transactions.push(newTx);
+            successCount++;
+        } catch (err) {
+            console.error('Bulk error', err);
+        }
+    }
+    
+    if (el('bulkProgressBar')) el('bulkProgressBar').style.width = '100%';
+    setTimeout(() => {
+        if (el('bulkProgressContainer')) el('bulkProgressContainer').classList.add('hidden');
+        saveTransactionsToStorage();
+        updateDashboard();
+        showToast(`${successCount}件のレシートを取り込みました`, 'success');
+    }, 1000);
+}
 function readFileAsBase64(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = error => reject(error);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
         reader.readAsDataURL(file);
     });
 }
 
-// Background OCR/AI Parsing for bulk upload
-async function processSingleFileInBackground(base64Data, mimeType) {
-    const apiKey = localStorage.getItem('gemini_api_key');
-    
-    if (apiKey) {
-        try {
-            const promptText = `
-Analyze this receipt image. Extract the following information and output it EXACTLY in the requested JSON format.
-Determine the appropriate category for each item.
-Categories must be exactly one of: 'food', 'dining', 'luxuries', 'shopping', 'clothing', 'furniture', 'utilities', 'mortgage', 'insurance', 'medical', 'education', 'transport', 'social', 'entertainment', 'special', or 'others'.
-
-Output JSON structure:
-{
-  "storeName": "Store Name Here",
-  "date": "YYYY-MM-DD",
-  "total": 1200,
-  "items": [
-    { "name": "Item 1", "price": 400, "category": "food" },
-    { "name": "Item 2", "price": 800, "category": "shopping" }
-  ]
-}
-`;
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{
-                        parts: [
-                            { text: promptText },
-                            { inlineData: { mimeType: mimeType, data: base64Data } }
-                        ]
-                    }],
-                    generationConfig: {
-                        responseMimeType: "application/json",
-                        responseSchema: {
-                            type: "OBJECT",
-                            properties: {
-                                storeName: { type: "STRING" },
-                                date: { type: "STRING" },
-                                total: { type: "INTEGER" },
-                                items: {
-                                    type: "ARRAY",
-                                    items: {
-                                        type: "OBJECT",
-                                        properties: {
-                                            name: { type: "STRING" },
-                                            price: { type: "INTEGER" },
-                                            category: { type: "STRING", enum: Object.keys(categoryMeta) }
-                                        },
-                                        required: ["name", "price", "category"]
-                                    }
-                                }
-                            },
-                            required: ["storeName", "date", "total", "items"]
-                        }
-                    }
-                })
-            });
-
-            if (!response.ok) throw new Error('API failed');
-            const data = await response.json();
-            return JSON.parse(data.candidates[0].content.parts[0].text.trim());
-        } catch (e) {
-            console.error('API Background call failed. Using mock fallback.', e);
-            return getMockReceiptResult();
-        }
-    } else {
-        await new Promise(r => setTimeout(r, 1500));
-        return getMockReceiptResult();
-    }
-}
-
-// Return a randomized mock receipt result
-function getMockReceiptResult() {
-    const randomIndex = Math.floor(Math.random() * mockReceipts.length);
-    const selectedMock = JSON.parse(JSON.stringify(mockReceipts[randomIndex]));
-    
-    // Map random categories for mocks out of 16 options
-    selectedMock.items.forEach(item => {
-        const keys = Object.keys(categoryMeta);
-        const randKey = keys[Math.floor(Math.random() * 6)]; // Pick from food/shop/util keys mostly
-        item.category = randKey;
-    });
-
-    const daysAgo = Math.floor(Math.random() * 5);
-    selectedMock.date = new Date(Date.now() - (daysAgo * 86400000)).toISOString().split('T')[0];
-    return selectedMock;
-}
-
-// OCR & AI Parsing function (Single Flow)
+// 11. Gemini API Integration
 async function performScan(base64Data, mimeType) {
-    const apiKey = localStorage.getItem('gemini_api_key');
+    if (!apiKey) return runMockScan();
     
-    if (apiKey) {
-        try {
-            const promptText = `
-Analyze this receipt image. Extract the following information and output it EXACTLY in the requested JSON format.
-Make your best guess based on the receipt contents. Translate items into Japanese if they are readable.
-Categories must be exactly one of: 'food', 'dining', 'luxuries', 'shopping', 'clothing', 'furniture', 'utilities', 'mortgage', 'insurance', 'medical', 'education', 'transport', 'social', 'entertainment', 'special', or 'others'.
-
-Output JSON structure:
-{
-  "storeName": "Store Name Here",
-  "date": "YYYY-MM-DD",
-  "total": 1280,
-  "items": [
-    { "name": "Item Name 1", "price": 500, "category": "food" | "dining" | "luxuries" | "shopping" | "clothing" | "furniture" | "utilities" | "mortgage" | "insurance" | "medical" | "education" | "transport" | "social" | "entertainment" | "special" | "others" },
-    { "name": "Item Name 2", "price": 780, "category": "food" | "dining" | "luxuries" | "shopping" | "clothing" | "furniture" | "utilities" | "mortgage" | "insurance" | "medical" | "education" | "transport" | "social" | "entertainment" | "special" | "others" }
-  ]
-}
-`;
-
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [
-                        {
-                            parts: [
-                                { text: promptText },
-                                {
-                                    inlineData: {
-                                        mimeType: mimeType,
-                                        data: base64Data
-                                    }
-                                }
-                            ]
-                        }
-                    ],
-                    generationConfig: {
-                        responseMimeType: "application/json",
-                        responseSchema: {
-                            type: "OBJECT",
-                            properties: {
-                                storeName: { type: "STRING" },
-                                date: { type: "STRING", description: "Format: YYYY-MM-DD" },
-                                total: { type: "INTEGER" },
-                                items: {
-                                    type: "ARRAY",
-                                    items: {
-                                        type: "OBJECT",
-                                        properties: {
-                                            name: { type: "STRING" },
-                                            price: { type: "INTEGER" },
-                                            category: { type: "STRING", enum: Object.keys(categoryMeta) }
-                                        },
-                                        required: ["name", "price", "category"]
-                                    }
-                                }
-                            },
-                            required: ["storeName", "date", "total", "items"]
-                        }
+    const schema = {
+        type: "OBJECT",
+        properties: {
+            storeName: { type: "STRING" },
+            date: { type: "STRING", description: "YYYY-MM-DD format" },
+            total: { type: "INTEGER" },
+            items: {
+                type: "ARRAY",
+                items: {
+                    type: "OBJECT",
+                    properties: {
+                        name: { type: "STRING" },
+                        price: { type: "INTEGER" },
+                        category: { type: "STRING", description: "One of: food, dining, luxuries, shopping, clothing, furniture, utilities, mortgage, insurance, medical, education, transport, social, entertainment, special, others" }
                     }
-                })
-            });
-
-            if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.error?.message || 'API request failed');
+                }
             }
-
-            const data = await response.json();
-            const parsedData = JSON.parse(data.candidates[0].content.parts[0].text.trim());
-            
-            populateEditor(parsedData);
-            showToast('AIレシート解析が完了しました！', 'success');
-            
-        } catch (error) {
-            console.error('Gemini API Error:', error);
-            showToast(`API解析エラー: ${error.message}。デモデータで代替します。`, 'error');
-            setTimeout(() => runMockScan(), 1000);
         }
-    } else {
-        runMockScan();
+    };
+    
+    try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [
+                        { inlineData: { mimeType: mimeType || 'image/jpeg', data: base64Data } },
+                        { text: "Extract receipt information into the JSON schema." }
+                    ]
+                }],
+                generationConfig: {
+                    responseMimeType: 'application/json',
+                    responseSchema: schema
+                }
+            })
+        });
+        
+        const data = await response.json();
+        if (data.error) throw new Error(data.error.message);
+        
+        const textRes = data.candidates[0].content.parts[0].text;
+        return JSON.parse(textRes);
+    } catch (e) {
+        console.error('API Error:', e);
+        showToast('API呼び出し失敗、モックを使用します', 'error');
+        return runMockScan();
     }
 }
-
 function runMockScan() {
-    setTimeout(() => {
-        const selectedMock = getMockReceiptResult();
-        populateEditor(selectedMock);
-        showToast('デモレシートのスキャンが完了しました！', 'success');
-    }, 2500);
+    return new Promise(resolve => {
+        setTimeout(() => { resolve(getMockReceiptResult()); }, 2500);
+    });
+}
+function getMockReceiptResult() {
+    const mock = JSON.parse(JSON.stringify(mockReceipts[Math.floor(Math.random() * mockReceipts.length)]));
+    const d = new Date();
+    d.setDate(d.getDate() - Math.floor(Math.random() * 6));
+    mock.date = d.toISOString().split('T')[0];
+    return mock;
 }
 
-// Populate UI form editor
-function populateEditor(data) {
-    currentScannedData = data;
-    scannerContainer.classList.remove('scanning');
-    
-    if (editingTransactionId) {
-        editorTitle.innerHTML = `<i data-lucide="edit-3" style="color: var(--primary)"></i> 取引データの編集`;
-    } else if (data.storeName === "" && data.total === 0 && data.items.length === 0) {
-        editorTitle.innerHTML = `<i data-lucide="keyboard" style="color: var(--primary)"></i> 手動で支出を追加`;
-    } else {
-        editorTitle.innerHTML = `<i data-lucide="edit-3" style="color: var(--primary)"></i> 解析結果の確認・編集`;
+// 12. WebRTC Camera
+async function startContinuousCamera() {
+    try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        if (el('cameraVideo')) {
+            el('cameraVideo').srcObject = cameraStream;
+            el('cameraVideo').play();
+        }
+        if (el('cameraViewOverlay')) el('cameraViewOverlay').classList.remove('hidden');
+        capturedImages = [];
+        updateCameraThumbs();
+    } catch (e) {
+        showToast('カメラの起動に失敗しました', 'error');
     }
+}
+function stopContinuousCamera() {
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(t => t.stop());
+        cameraStream = null;
+    }
+    if (el('cameraViewOverlay')) el('cameraViewOverlay').classList.add('hidden');
+}
+function captureSnapshot() {
+    const video = el('cameraVideo');
+    if (!video) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    const dataUrl = canvas.toDataURL('image/jpeg');
+    capturedImages.push(dataUrl);
     
-    receiptStore.value = data.storeName || '';
-    receiptDate.value = data.date || new Date().toISOString().split('T')[0];
-    receiptTotal.value = data.total || 0;
+    const flash = el('cameraFlash');
+    if (flash) {
+        flash.classList.remove('hidden');
+        flash.style.opacity = '1';
+        setTimeout(() => {
+            flash.style.opacity = '0';
+            setTimeout(() => flash.classList.add('hidden'), 200);
+        }, 50);
+    }
+    updateCameraThumbs();
+}
+function updateCameraThumbs() {
+    const container = el('capturedThumbsContainer');
+    if (!container) return;
+    container.innerHTML = '';
+    capturedImages.forEach((img, idx) => {
+        const div = document.createElement('div');
+        div.className = 'relative w-16 h-16 shrink-0';
+        div.innerHTML = `
+            <img src="${img}" class="w-full h-full object-cover rounded border border-white">
+            <button class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs" onclick="removeCaptured(${idx})">×</button>
+        `;
+        container.appendChild(div);
+    });
     
-    itemsList.innerHTML = '';
-    if (data.items && data.items.length > 0) {
-        data.items.forEach(item => {
-            addReceiptItem(item.name, item.price, item.category || 'others');
+    const procBtn = el('processCapturedBtn');
+    if (procBtn) {
+        procBtn.disabled = capturedImages.length === 0;
+        procBtn.textContent = `処理する (${capturedImages.length}枚)`;
+    }
+}
+window.removeCaptured = function(idx) {
+    capturedImages.splice(idx, 1);
+    updateCameraThumbs();
+}
+async function submitCapturedImages() {
+    const images = [...capturedImages];
+    stopContinuousCamera();
+    
+    if (images.length === 1) {
+        if (el('dropzone')) el('dropzone').style.display = 'none';
+        if (el('scannerContainer')) el('scannerContainer').classList.remove('hidden');
+        if (el('scannedImage')) el('scannedImage').src = images[0];
+        
+        try {
+            const res = await performScan(images[0].split(',')[1], 'image/jpeg');
+            populateEditor(res);
+        } catch(e) {
+            resetScannerState();
+        }
+    } else if (images.length > 1) {
+        if (el('bulkProgressContainer')) el('bulkProgressContainer').classList.remove('hidden');
+        let successCount = 0;
+        
+        for (let i = 0; i < images.length; i++) {
+            if (el('bulkProgressText')) el('bulkProgressText').textContent = `処理中: ${i+1} / ${images.length}`;
+            if (el('bulkProgressBar')) el('bulkProgressBar').style.width = `${((i)/images.length)*100}%`;
+            
+            try {
+                const res = await performScan(images[i].split(',')[1], 'image/jpeg');
+                const newTx = {
+                    id: 't-' + Date.now().toString() + '-' + i,
+                    storeName: res.storeName || '不明な店舗',
+                    date: res.date || new Date().toISOString().split('T')[0],
+                    total: res.total || 0,
+                    items: res.items || []
+                };
+                transactions.push(newTx);
+                successCount++;
+            } catch (err) {}
+        }
+        
+        if (el('bulkProgressBar')) el('bulkProgressBar').style.width = '100%';
+        setTimeout(() => {
+            if (el('bulkProgressContainer')) el('bulkProgressContainer').classList.add('hidden');
+            saveTransactionsToStorage();
+            updateDashboard();
+            showToast(`${successCount}件のレシートを取り込みました`, 'success');
+        }, 1000);
+    }
+}
+
+// 13. Manual Input Mode
+function startManualInput() {
+    if (el('dropzone')) el('dropzone').style.display = 'none';
+    if (el('scannerContainer')) el('scannerContainer').classList.add('hidden');
+    
+    populateEditor({
+        storeName: '',
+        date: new Date().toISOString().split('T')[0],
+        total: 0,
+        items: []
+    });
+    
+    if (el('editorTitle')) el('editorTitle').textContent = '手動入力';
+    setTimeout(() => {
+        if (el('receiptStore')) {
+            el('receiptStore').focus();
+            el('receiptStore').scrollIntoView({behavior: 'smooth', block: 'center'});
+        }
+    }, 100);
+}
+
+// 14. Receipt Editor
+function populateEditor(data) {
+    if (el('editorPanel')) el('editorPanel').classList.remove('hidden');
+    if (el('editorTitle')) el('editorTitle').textContent = 'レシート確認・編集';
+    
+    if (el('receiptStore')) el('receiptStore').value = data.storeName || '';
+    if (el('receiptDate')) el('receiptDate').value = data.date || new Date().toISOString().split('T')[0];
+    if (el('receiptTotal')) el('receiptTotal').value = data.total || 0;
+    
+    const list = el('itemsList');
+    if (list) {
+        list.innerHTML = '';
+        if (data.items && data.items.length) {
+            data.items.forEach(item => addReceiptItem(item.name, item.price, item.category));
+        } else {
+            addReceiptItem('', 0, 'others');
+        }
+    }
+}
+function addReceiptItem(name = '', price = 0, category = 'others') {
+    const list = el('itemsList');
+    if (!list) return;
+    
+    const row = document.createElement('div');
+    row.className = 'flex gap-2 items-center mb-2 item-row';
+    
+    let options = '';
+    Object.entries(categoryMeta).forEach(([k, v]) => {
+        options += `<option value="${k}" ${k === category ? 'selected' : ''}>${v.label}</option>`;
+    });
+    
+    row.innerHTML = `
+        <input type="text" class="item-name flex-1 p-2 border rounded" placeholder="品名" value="${name}">
+        <input type="number" class="item-price w-24 p-2 border rounded" placeholder="金額" value="${price}" onchange="calculateTotalFromItems()">
+        <select class="item-category w-32 p-2 border rounded">${options}</select>
+        <button class="text-red-500 p-2 hover:bg-red-50 rounded" onclick="this.parentElement.remove(); calculateTotalFromItems();"><i data-lucide="trash-2"></i></button>
+    `;
+    list.appendChild(row);
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    calculateTotalFromItems();
+}
+window.calculateTotalFromItems = function() {
+    let sum = 0;
+    qsa('.item-price').forEach(input => { sum += parseInt(input.value) || 0; });
+    if (el('receiptTotal')) el('receiptTotal').value = sum;
+}
+function resetScannerState() {
+    if (el('dropzone')) el('dropzone').style.display = 'block';
+    if (el('scannerContainer')) el('scannerContainer').classList.add('hidden');
+    if (el('editorPanel')) el('editorPanel').classList.add('hidden');
+    if (el('scannedImage')) el('scannedImage').src = '';
+    editingTransactionId = null;
+    if (el('fileInput')) el('fileInput').value = '';
+}
+
+// 15. Transaction CRUD
+function loadTransactions() {
+    const stored = localStorage.getItem('receipt_transactions');
+    if (stored) {
+        transactions = JSON.parse(stored);
+        transactions = transactions.map(t => {
+            if (t.category && (!t.items || t.items.length === 0)) {
+                t.items = [{ name: 'まとめ入力', price: t.total, category: t.category }];
+                delete t.category;
+            }
+            if (t.items) {
+                t.items = t.items.map(item => ({ ...item, category: item.category || 'others' }));
+            }
+            return t;
         });
     } else {
-        addReceiptItem('商品・サービス合計', data.total || 0, 'food');
+        transactions = [];
     }
-    
-    editorPanel.style.display = 'block';
-    editorPanel.scrollIntoView({ behavior: 'smooth' });
-    lucide.createIcons();
 }
-
-function addReceiptItem(name = '', price = 0, category = 'food') {
-    const itemRow = document.createElement('div');
-    itemRow.className = 'item-row';
-    
-    let optionsHtml = '';
-    Object.keys(categoryMeta).forEach(key => {
-        const meta = categoryMeta[key];
-        optionsHtml += `<option value="${key}" ${key === category ? 'selected' : ''}>${meta.label}</option>`;
-    });
-
-    itemRow.innerHTML = `
-        <input type="text" class="item-name" placeholder="品名" value="${name}">
-        <select class="item-category-select">
-            ${optionsHtml}
-        </select>
-        <input type="number" class="item-price" placeholder="単価" value="${price}">
-        <button class="btn btn-icon delete-item-btn" title="品目を削除">
-            <i data-lucide="trash-2"></i>
-        </button>
-    `;
-    
-    itemsList.appendChild(itemRow);
-    lucide.createIcons();
-    
-    const priceInput = itemRow.querySelector('.item-price');
-    priceInput.addEventListener('input', calculateTotalFromItems);
-    
-    const deleteBtn = itemRow.querySelector('.delete-item-btn');
-    deleteBtn.addEventListener('click', () => {
-        itemRow.remove();
-        calculateTotalFromItems();
-    });
-}
-
-function calculateTotalFromItems() {
-    const priceInputs = itemsList.querySelectorAll('.item-price');
-    let sum = 0;
-    priceInputs.forEach(input => {
-        const val = parseFloat(input.value) || 0;
-        sum += val;
-    });
-    receiptTotal.value = sum;
-}
-
-// Reset scan UI state
-function resetScannerState() {
-    dropzone.style.display = 'block';
-    scannerContainer.style.display = 'none';
-    editorPanel.style.display = 'none';
-    fileInput.value = '';
-    currentScannedData = null;
-    editingTransactionId = null;
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-// Edit existing transaction
-function editTransaction(id) {
-    const txn = transactions.find(t => t.id === id);
-    if (!txn) return;
-    
-    editingTransactionId = id;
-    populateEditor(txn);
-    
-    dropzone.style.display = 'none';
-    scannerContainer.style.display = 'none';
-}
-
-// Save active transaction to localStorage
-function saveCurrentTransaction() {
-    const store = receiptStore.value.trim();
-    const date = receiptDate.value;
-    const total = parseInt(receiptTotal.value) || 0;
-    
-    if (!store) {
-        showToast('店舗名/支出名を入力してください。', 'error');
-        return;
-    }
-    if (!date) {
-        showToast('日付を入力してください。', 'error');
-        return;
-    }
-
-    const itemRows = itemsList.querySelectorAll('.item-row');
-    const items = [];
-    itemRows.forEach(row => {
-        const name = row.querySelector('.item-name').value.trim();
-        const category = row.querySelector('.item-category-select').value;
-        const price = parseInt(row.querySelector('.item-price').value) || 0;
-        if (name) {
-            items.push({ name, category, price });
-        }
-    });
-
-    if (editingTransactionId) {
-        const index = transactions.findIndex(t => t.id === editingTransactionId);
-        if (index !== -1) {
-            transactions[index] = {
-                id: editingTransactionId,
-                storeName: store,
-                date: date,
-                total: total,
-                items: items
-            };
-            showToast('取引データを更新しました！', 'success');
-        }
-        editingTransactionId = null;
-    } else {
-        const newTransaction = {
-            id: Date.now().toString(),
-            storeName: store,
-            date: date,
-            total: total,
-            items: items
-        };
-        transactions.unshift(newTransaction);
-        showToast('家計簿に登録しました！', 'success');
-    }
-
+function saveTransactionsToStorage() {
     localStorage.setItem('receipt_transactions', JSON.stringify(transactions));
+}
+function saveCurrentTransaction() {
+    const storeName = el('receiptStore').value.trim();
+    const date = el('receiptDate').value;
+    const total = parseInt(el('receiptTotal').value) || 0;
+    
+    if (!date || total <= 0) {
+        showToast('日付と有効な金額を入力してください', 'error');
+        return;
+    }
+    
+    const items = [];
+    qsa('.item-row').forEach(row => {
+        const name = row.querySelector('.item-name').value;
+        const price = parseInt(row.querySelector('.item-price').value) || 0;
+        const category = row.querySelector('.item-category').value;
+        if (name || price > 0) items.push({ name: name || '名称未設定', price, category });
+    });
+    
+    if (items.length === 0) items.push({ name: 'まとめ入力', price: total, category: 'others' });
+    
+    if (editingTransactionId) {
+        const idx = transactions.findIndex(t => t.id === editingTransactionId);
+        if (idx > -1) {
+            transactions[idx] = { ...transactions[idx], storeName, date, total, items };
+            showToast('更新しました', 'success');
+        }
+    } else {
+        transactions.push({
+            id: 't-' + Date.now().toString(),
+            storeName: storeName || '不明な店舗',
+            date, total, items
+        });
+        showToast('保存しました', 'success');
+    }
+    
+    saveTransactionsToStorage();
     resetScannerState();
     updateDashboard();
 }
-
+function editTransaction(id) {
+    if (id.startsWith('rec-')) {
+        showToast('定期支出は「予算・定期」タブから編集してください', 'info');
+        return;
+    }
+    const t = transactions.find(x => x.id === id);
+    if (!t) return;
+    editingTransactionId = id;
+    
+    if (el('dropzone')) el('dropzone').style.display = 'none';
+    populateEditor(t);
+    closeDayModal();
+    
+    setTimeout(() => {
+        if (el('editorPanel')) el('editorPanel').scrollIntoView({behavior: 'smooth', block: 'start'});
+    }, 100);
+}
 function deleteTransaction(id) {
+    if (id.startsWith('rec-')) {
+        showToast('定期支出は「予算・定期」タブから削除してください', 'info');
+        return;
+    }
+    if(!confirm('削除しますか？')) return;
     transactions = transactions.filter(t => t.id !== id);
-    localStorage.setItem('receipt_transactions', JSON.stringify(transactions));
-    showToast('データを削除しました。', 'info');
-    
-    if (activeFilterDate) {
-        const hasMoreOnDate = transactions.some(t => t.date === activeFilterDate);
-        if (!hasMoreOnDate) activeFilterDate = null;
-    }
-    
+    saveTransactionsToStorage();
     updateDashboard();
+    closeDayModal();
+    showToast('削除しました', 'info');
 }
 
-function loadTransactions() {
-    const saved = localStorage.getItem('receipt_transactions');
-    if (saved) {
-        try {
-            transactions = JSON.parse(saved);
-            
-            // DATA MIGRATION: Convert old format
-            transactions.forEach(t => {
-                if (t.category && (!t.items || t.items.some(item => !item.category))) {
-                    if (!t.items || t.items.length === 0) {
-                        t.items = [{ name: "レシート合計", price: t.total, category: t.category }];
-                    } else {
-                        t.items.forEach(item => {
-                            if (!item.category) item.category = t.category;
-                        });
-                    }
-                    delete t.category;
-                }
-            });
-            localStorage.setItem('receipt_transactions', JSON.stringify(transactions));
-        } catch (e) {
-            transactions = [];
-        }
-    }
-}
-
-// Update Dashboard View Tab
+// 16. Dashboard Update
 function updateDashboard() {
     const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth(); // 0-11
+    const month = currentMonth.getMonth() + 1;
     
-    // Resolve standard + recurring transactions for current month
     const monthlyTxns = getMonthlyResolvedTransactions(year, month);
-
-    const receiptCount = monthlyTxns.length;
-    receiptCountVals.forEach(v => v.innerText = `${receiptCount} 件`);
+    const totalSpent = monthlyTxns.reduce((sum, t) => sum + t.total, 0);
     
-    const monthlyTotalSum = monthlyTxns.reduce((acc, curr) => acc + curr.total, 0);
-    totalExpensesVals.forEach(v => v.innerText = `¥${monthlyTotalSum.toLocaleString()}`);
+    qsa('.totalExpensesVal').forEach(el => el.textContent = totalSpent.toLocaleString() + '円');
+    qsa('.receiptCountVal').forEach(el => el.textContent = monthlyTxns.length + '件');
     
-    // Budget Calculations (Summed items budget vs actual monthly sum)
-    const activeBudgetCats = getActiveBudgetForMonth(currentMonth);
-    const overallBudget = Object.values(activeBudgetCats).reduce((acc, curr) => acc + curr, 0);
+    const activeBudget = getActiveBudgetForMonth(currentMonth);
+    const overallBudget = Object.values(activeBudget).reduce((sum, val) => sum + val, 0);
     
-    // Update budget bars on both dashboard/analytics instances
-    updateOverallBudgetBars(monthlyTotalSum, overallBudget);
+    updateOverallBudgetBars(totalSpent, overallBudget);
+    renderDashboardCategoryBudgets(monthlyTxns, activeBudget);
     
-    // Render Calendar
     renderCalendarGrid(monthlyTxns);
-
-    // Filter history list
-    let filteredHistoryTxns = monthlyTxns;
-    if (activeFilterDate) {
-        filteredHistoryTxns = monthlyTxns.filter(t => t.date === activeFilterDate);
-        filterActiveBadge.style.display = 'inline-block';
-        filterActiveBadge.innerText = `${activeFilterDate.split('-')[2]}日のフィルタ中`;
-    } else {
-        filterActiveBadge.style.display = 'none';
-    }
-
-    // Render History List UI
-    if (filteredHistoryTxns.length === 0) {
-        historyEmptyState.style.display = 'flex';
-        const items = historyList.querySelectorAll('.history-item');
-        items.forEach(el => el.remove());
-    } else {
-        historyEmptyState.style.display = 'none';
-        
-        const oldItems = historyList.querySelectorAll('.history-item');
-        oldItems.forEach(el => el.remove());
-        
-        filteredHistoryTxns.forEach(t => {
-            const itemCategories = [...new Set(t.items.map(item => item.category || 'others'))];
-            
-            let badgesHtml = '';
-            itemCategories.forEach(cat => {
-                const meta = categoryMeta[cat] || categoryMeta.others;
-                badgesHtml += `<span class="badge ${meta.class}">${meta.label}</span>`;
-            });
-
-            const isRec = t.isRecurring;
-            const actionButtonsHtml = isRec 
-                ? `<span style="font-size: 11px; color: var(--text-muted); font-weight: 600; padding-right:10px;">[固定費]</span>`
-                : `
-                    <button class="btn btn-icon edit-txn-btn" data-id="${t.id}" title="編集" style="color: var(--text-muted);">
-                        <i data-lucide="edit-2" style="width: 15px; height: 15px;"></i>
-                    </button>
-                    <button class="btn btn-icon delete-txn-btn" data-id="${t.id}" title="削除" style="color: var(--text-muted);">
-                        <i data-lucide="trash-2" style="width: 15px; height: 15px;"></i>
-                    </button>
-                  `;
-
-            const historyItem = document.createElement('div');
-            historyItem.className = 'history-item';
-            historyItem.innerHTML = `
-                <div class="history-left">
-                    <div class="history-title" title="${t.storeName}">${t.storeName}</div>
-                    <div class="history-meta">
-                        <span>${t.date}</span>
-                        ${badgesHtml}
-                    </div>
-                </div>
-                <div class="history-right">
-                    <div class="history-amount">¥${t.total.toLocaleString()}</div>
-                    ${actionButtonsHtml}
-                </div>
-            `;
-            historyList.appendChild(historyItem);
-        });
-        
-        // Bind events
-        historyList.querySelectorAll('.delete-txn-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const id = btn.getAttribute('data-id');
-                if (confirm('この取引データを家計簿から削除しますか？')) {
-                    deleteTransaction(id);
-                }
-            });
-        });
-
-        historyList.querySelectorAll('.edit-txn-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const id = btn.getAttribute('data-id');
-                editTransaction(id);
-            });
-        });
-        
-        lucide.createIcons();
-    }
-    
-    // Sync Category distribution charts
+    renderHistoryList(monthlyTxns);
     updateCategoryCharts(monthlyTxns);
 }
 
-// Update dashboard/analytics budget progress bar instances
+// 17. Budget Progress Bars
 function updateOverallBudgetBars(monthlyTotalSum, overallBudget) {
-    const remaining = overallBudget - monthlyTotalSum;
-    const percent = overallBudget > 0 ? (monthlyTotalSum / overallBudget) * 100 : 0;
+    let percent = 0;
+    if (overallBudget > 0) percent = Math.min((monthlyTotalSum / overallBudget) * 100, 100);
     
-    budgetPercentLabels.forEach(label => {
-        if (overallBudget > 0) {
-            label.innerText = `消化率: ${Math.round(percent)}% (¥${monthlyTotalSum.toLocaleString()} / ¥${overallBudget.toLocaleString()})`;
-        } else {
-            label.innerText = `消化率: 0% (¥${monthlyTotalSum.toLocaleString()} / 予算未設定)`;
+    qsa('.budgetPercentLabel').forEach(el => el.textContent = overallBudget > 0 ? `${Math.round(percent)}%` : '- %');
+    qsa('.budgetRemainingLabel').forEach(el => {
+        if (overallBudget === 0) el.textContent = '予算未設定';
+        else {
+            const rem = overallBudget - monthlyTotalSum;
+            if (rem >= 0) el.textContent = `残り: ${rem.toLocaleString()}円`;
+            else el.textContent = `超過: ${Math.abs(rem).toLocaleString()}円`;
         }
     });
     
-    budgetRemainingLabels.forEach(label => {
-        if (overallBudget === 0) {
-            label.innerText = "予算を設定してください";
-            label.style.color = "var(--text-muted)";
-        } else if (remaining >= 0) {
-            label.innerText = `残高: ¥${remaining.toLocaleString()}`;
-            label.style.color = 'var(--text-muted)';
-        } else {
-            label.innerText = `予算超過: ¥${Math.abs(remaining).toLocaleString()}`;
-            label.style.color = 'var(--danger)';
-        }
+    qsa('.budgetProgressBar').forEach(bar => {
+        bar.style.width = `${percent}%`;
+        if (percent < 80) bar.className = 'budgetProgressBar h-full bg-blue-500 rounded-full';
+        else if (percent <= 100) bar.className = 'budgetProgressBar h-full bg-yellow-500 rounded-full';
+        else bar.className = 'budgetProgressBar h-full bg-red-500 rounded-full';
     });
+}
+function renderDashboardCategoryBudgets(monthlyTxns, activeBudget) {
+    const container = el('dashboardCategoryBudgets');
+    if (!container) return;
+    container.innerHTML = '';
     
-    budgetProgressBars.forEach(bar => {
-        bar.style.width = `${Math.min(100, percent)}%`;
-        if (percent > 100) {
-            bar.classList.add('over-budget');
-        } else {
-            bar.classList.remove('over-budget');
-        }
-    });
-
-    // --- CATEGORY BUDGETS LIST RENDERING ---
-    const catBudgetsContainer = document.getElementById('dashboardCategoryBudgets');
-    if (catBudgetsContainer) {
-        catBudgetsContainer.innerHTML = '';
-        
-        const activeBudgetCats = getActiveBudgetForMonth(currentMonth);
-        const year = currentMonth.getFullYear();
-        const month = currentMonth.getMonth();
-        const monthlyTxns = getMonthlyResolvedTransactions(year, month);
-        
-        const catSpends = {};
-        Object.keys(categoryMeta).forEach(k => catSpends[k] = 0);
-        
-        monthlyTxns.forEach(t => {
-            t.items.forEach(item => {
-                const cat = item.category || 'others';
-                if (catSpends.hasOwnProperty(cat)) {
-                    catSpends[cat] += item.price;
-                } else {
-                    catSpends.others += item.price;
-                }
-            });
+    const spends = {};
+    Object.keys(categoryMeta).forEach(k => spends[k] = 0);
+    
+    monthlyTxns.forEach(t => {
+        t.items.forEach(item => {
+            if (spends[item.category] !== undefined) spends[item.category] += item.price;
+            else spends['others'] += item.price;
         });
+    });
+    
+    Object.entries(categoryMeta).forEach(([key, meta]) => {
+        const budget = activeBudget[key] || 0;
+        const spent = spends[key] || 0;
         
-        let hasAnyBudgetDisplay = false;
-        Object.keys(categoryMeta).forEach(catKey => {
-            const budgetAmt = activeBudgetCats[catKey] || 0;
-            const spendAmt = catSpends[catKey] || 0;
+        if (budget > 0 || spent > 0) {
+            let percent = 0;
+            if (budget > 0) percent = Math.min((spent / budget) * 100, 100);
+            else if (spent > 0) percent = 100;
             
-            // Only render categories that either have a budget set or have recorded spending this month
-            if (budgetAmt > 0 || spendAmt > 0) {
-                hasAnyBudgetDisplay = true;
-                const meta = categoryMeta[catKey] || categoryMeta.others;
-                const catPercent = budgetAmt > 0 ? (spendAmt / budgetAmt) * 100 : 0;
-                const catRemaining = budgetAmt - spendAmt;
-                
-                let progressColor = 'background: var(--primary);';
-                if (catPercent > 100) {
-                    progressColor = 'background: linear-gradient(90deg, var(--danger) 0%, #F59E0B 100%);';
-                } else if (catPercent > 80) {
-                    progressColor = 'background: #F59E0B;';
-                }
-                
-                const row = document.createElement('div');
-                row.className = 'dashboard-category-budget-row';
-                
-                let budgetText = '';
-                let remainingText = '';
-                if (budgetAmt > 0) {
-                    budgetText = `(¥${spendAmt.toLocaleString()} / ¥${budgetAmt.toLocaleString()})`;
-                    if (catRemaining >= 0) {
-                        remainingText = `残: ¥${catRemaining.toLocaleString()}`;
-                    } else {
-                        remainingText = `超過: ¥${Math.abs(catRemaining).toLocaleString()}`;
-                    }
-                } else {
-                    budgetText = `(¥${spendAmt.toLocaleString()} / 未設定)`;
-                    remainingText = `予算なし`;
-                }
-                
-                row.innerHTML = `
-                    <div class="dashboard-category-budget-info">
-                        <span class="badge ${meta.class}" style="font-size: 10px;">${meta.label}</span>
-                        <span style="color: var(--text-muted); font-size:10px;">${Math.round(catPercent)}% ${budgetText}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
-                        <div class="progress-bar-container" style="flex-grow: 1; height: 6px; background: rgba(255,255,255,0.05); margin-bottom: 0;">
-                            <div class="progress-bar-fill" style="height: 100%; width: ${Math.min(100, catPercent)}%; ${progressColor}"></div>
-                        </div>
-                        <span style="font-size: 10px; font-weight: 600; color: ${catRemaining < 0 ? 'var(--danger)' : 'var(--text-muted)'}; min-width: 80px; text-align: right;">
-                            ${remainingText}
-                        </span>
-                    </div>
-                `;
-                catBudgetsContainer.appendChild(row);
+            let barColor = 'bg-blue-500';
+            if (spent > budget && budget > 0) barColor = 'bg-gradient-to-r from-red-500 to-red-600';
+            else if (percent >= 80) barColor = 'bg-amber-500';
+            else barColor = `bg-[${meta.color}]`;
+            
+            let remText = '';
+            if (budget > 0) {
+                const rem = budget - spent;
+                if (rem >= 0) remText = `残り ${rem.toLocaleString()}円`;
+                else remText = `<span class="text-red-500 font-bold">超過 ${Math.abs(rem).toLocaleString()}円</span>`;
+            } else {
+                remText = '予算なし';
             }
-        });
-
-        if (!hasAnyBudgetDisplay) {
-            catBudgetsContainer.innerHTML = `
-                <div style="text-align: center; color: var(--text-muted); font-size: 11px; padding: 10px 0;">
-                    今月の項目別予算・支出はまだありません。
+            
+            const div = document.createElement('div');
+            div.className = 'mb-3';
+            div.innerHTML = `
+                <div class="flex justify-between items-center text-sm mb-1">
+                    <div class="flex items-center gap-1">
+                        <span class="w-3 h-3 rounded-full" style="background-color: ${meta.color}"></span>
+                        <span class="font-medium">${meta.label}</span>
+                    </div>
+                    <span>${spent.toLocaleString()} / ${budget.toLocaleString()}円</span>
                 </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="${barColor} h-2 rounded-full transition-all" style="width: ${percent}%; background-color: ${barColor.includes('bg-[') ? meta.color : ''}"></div>
+                </div>
+                <div class="text-xs text-right mt-1 text-gray-500">${remText}</div>
             `;
+            container.appendChild(div);
         }
-    }
+    });
 }
 
-// Dynamically generate calendar grid cells
+// 18. Calendar Grid
 function renderCalendarGrid(monthlyTxns) {
-    calendarGrid.innerHTML = '';
+    const grid = qs('.calendarGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
     
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
     
-    const firstDay = new Date(year, month, 1);
-    const startOffset = firstDay.getDay(); // 0 is Sunday, 6 is Saturday
-    
-    const totalDays = new Date(year, month + 1, 0).getDate();
-    
-    const spendMap = {};
-    const txnMap = {};
-    
-    monthlyTxns.forEach(t => {
-        const dateStr = t.date;
-        spendMap[dateStr] = (spendMap[dateStr] || 0) + t.total;
-        if (!txnMap[dateStr]) txnMap[dateStr] = [];
-        txnMap[dateStr].push(t);
+    const days = ['日','月','火','水','木','金','土'];
+    days.forEach(d => {
+        const hEl = document.createElement('div');
+        hEl.className = 'text-center text-xs font-bold text-gray-500 py-1';
+        hEl.textContent = d;
+        grid.appendChild(hEl);
     });
-
-    for (let i = 0; i < startOffset; i++) {
-        const emptyCell = document.createElement('div');
-        emptyCell.className = 'calendar-day empty';
-        calendarGrid.appendChild(emptyCell);
+    
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startOffset = firstDay.getDay();
+    
+    for(let i=0; i<startOffset; i++) {
+        const empty = document.createElement('div');
+        empty.className = 'p-1';
+        grid.appendChild(empty);
     }
     
     const todayStr = new Date().toISOString().split('T')[0];
     
-    for (let d = 1; d <= totalDays; d++) {
-        const dayCell = document.createElement('div');
-        const dStr = String(d).padStart(2, '0');
-        const mStr = String(month + 1).padStart(2, '0');
-        const dateStr = `${year}-${mStr}-${dStr}`;
+    for(let d=1; d<=lastDay.getDate(); d++) {
+        const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const dayTxns = monthlyTxns.filter(t => t.date === dateStr);
+        const spent = dayTxns.reduce((s, t) => s + t.total, 0);
         
-        const spent = spendMap[dateStr] || 0;
-        const isToday = dateStr === todayStr;
-        const isFiltered = dateStr === activeFilterDate;
+        const cell = document.createElement('div');
+        cell.className = 'min-h-[60px] border border-gray-100 p-1 relative cursor-pointer hover:bg-gray-50 transition-colors rounded';
         
-        let cellClass = 'calendar-day';
-        if (isToday) cellClass += ' today';
-        if (isFiltered) cellClass += ' active-filter';
-        if (spent > 0) {
-            cellClass += ' has-spend';
-            if (spent >= 10000) {
-                cellClass += ' has-high-spend';
-            }
-        }
+        if (dateStr === todayStr) cell.classList.add('bg-blue-50', 'border-blue-200', 'today');
+        if (activeFilterDate === dateStr) cell.classList.add('ring-2', 'ring-blue-500', 'active-filter');
+        if (spent > 0) cell.classList.add('has-spend');
+        if (spent >= 10000) cell.classList.add('bg-red-50', 'has-high-spend');
         
-        dayCell.className = cellClass;
-        dayCell.setAttribute('data-date', dateStr);
+        let spendHtml = spent > 0 ? `<div class="text-[10px] text-red-600 font-bold text-center mt-1">${spent.toLocaleString()}</div>` : '';
+        let indicatorHtml = dayTxns.some(t => t.isRecurring) ? `<div class="absolute top-1 right-1 w-2 h-2 rounded-full bg-purple-500" title="定期支出あり"></div>` : '';
         
-        const amountText = spent > 0 ? `¥${(spent).toLocaleString()}` : '';
+        cell.innerHTML = `<div class="text-xs ${dateStr === todayStr ? 'text-blue-600 font-bold' : 'text-gray-700'}">${d}</div>${indicatorHtml}${spendHtml}`;
         
-        dayCell.innerHTML = `
-            <span class="calendar-day-num">${d}</span>
-            <span class="calendar-day-amount" title="${amountText}">${amountText}</span>
-        `;
-        
-        dayCell.addEventListener('click', () => {
-            const dayTxns = txnMap[dateStr] || [];
-            openDayModal(dateStr, spent, dayTxns);
-            
-            if (spent > 0) {
-                activeFilterDate = isFiltered ? null : dateStr;
-                updateDashboard();
+        cell.addEventListener('click', () => {
+            if (activeFilterDate === dateStr) {
+                activeFilterDate = null;
+                renderHistoryList(monthlyTxns);
+                renderCalendarGrid(monthlyTxns);
+            } else {
+                activeFilterDate = dateStr;
+                renderHistoryList(monthlyTxns);
+                renderCalendarGrid(monthlyTxns);
+                if (spent > 0) openDayModal(dateStr, spent, dayTxns);
             }
         });
         
-        calendarGrid.appendChild(dayCell);
+        grid.appendChild(cell);
     }
 }
+function renderHistoryList(monthlyTxns) {
+    const list = qs('.historyList');
+    const emptyState = qs('.historyEmptyState');
+    const badge = qs('.filterActiveBadge');
+    if (!list) return;
+    
+    list.innerHTML = '';
+    
+    let filtered = monthlyTxns;
+    if (activeFilterDate) {
+        filtered = monthlyTxns.filter(t => t.date === activeFilterDate);
+        if (badge) {
+            badge.classList.remove('hidden');
+            badge.textContent = `${activeFilterDate.split('-')[2]}日の記録`;
+        }
+    } else {
+        if (badge) badge.classList.add('hidden');
+    }
+    
+    filtered.sort((a,b) => b.date.localeCompare(a.date));
+    
+    if (filtered.length === 0) {
+        if (emptyState) emptyState.classList.remove('hidden');
+    } else {
+        if (emptyState) emptyState.classList.add('hidden');
+        filtered.forEach(t => {
+            const card = document.createElement('div');
+            card.className = 'bg-white p-3 rounded shadow-sm border border-gray-100 flex justify-between items-center';
+            
+            const itemsStr = t.items.map(i => i.name).join(', ');
+            const recurBadge = t.isRecurring ? `<span class="bg-purple-100 text-purple-800 text-[10px] px-1 rounded ml-2">定期</span>` : '';
+            
+            card.innerHTML = `
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center"><div class="font-bold text-gray-800 truncate">${t.storeName}</div>${recurBadge}</div>
+                    <div class="text-xs text-gray-500 truncate">${t.date} | ${itemsStr}</div>
+                </div>
+                <div class="text-right ml-4">
+                    <div class="font-bold text-lg whitespace-nowrap">¥${t.total.toLocaleString()}</div>
+                    <button class="text-blue-500 text-xs hover:underline mt-1" onclick="editTransaction('${t.id}')">編集</button>
+                </div>
+            `;
+            list.appendChild(card);
+        });
+    }
+}
+
+// 19. Day Detail Modal
+function openDayModal(dateStr, spent, dayTxns) {
+    const modal = el('dayDetailModal');
+    if (!modal) return;
+    
+    if (el('dayDetailTitle')) el('dayDetailTitle').textContent = `${dateStr} の支出`;
+    if (el('dayDetailTotalSum')) el('dayDetailTotalSum').textContent = `合計: ${spent.toLocaleString()}円`;
+    
+    const list = el('dayDetailItemsList');
+    if (list) {
+        list.innerHTML = '';
+        dayTxns.forEach(t => {
+            const block = document.createElement('div');
+            block.className = 'mb-4 border-b pb-4 last:border-b-0';
+            
+            let recurBadge = t.isRecurring ? `<span class="bg-purple-100 text-purple-800 text-[10px] px-1 rounded ml-2">定期</span>` : '';
+            
+            let itemsHtml = t.items.map(item => {
+                const catMeta = categoryMeta[item.category] || categoryMeta.others;
+                return `
+                <div class="flex justify-between items-center text-sm mt-1 pl-2">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full" style="background-color: ${catMeta.color}"></span>
+                        <span class="text-gray-600">${item.name}</span>
+                    </div>
+                    <span>${item.price.toLocaleString()}円</span>
+                </div>`;
+            }).join('');
+            
+            block.innerHTML = `
+                <div class="flex justify-between items-center mb-2">
+                    <div class="font-bold flex items-center">${t.storeName} ${recurBadge}</div>
+                    <div class="flex gap-2 items-center">
+                        <span class="font-bold">${t.total.toLocaleString()}円</span>
+                        <button class="p-1 text-blue-600 hover:bg-blue-50 rounded" onclick="editTransaction('${t.id}')"><i data-lucide="edit-2" class="w-4 h-4"></i></button>
+                        <button class="p-1 text-red-600 hover:bg-red-50 rounded" onclick="deleteTransaction('${t.id}')"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    </div>
+                </div>
+                ${itemsHtml}
+            `;
+            list.appendChild(block);
+        });
+    }
+    
+    modal.classList.remove('hidden');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+function closeDayModal() {
+    if (el('dayDetailModal')) el('dayDetailModal').classList.add('hidden');
+}
+
+// 20. Analytics View
 function updateAnalyticsView() {
     const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
+    const month = currentMonth.getMonth() + 1;
     
-    const trendChartTitle = document.getElementById('trendChartTitle');
-    const trendChartIcon = document.getElementById('trendChartIcon');
-
-    let resolvedTxns = [];
-    let chartLabels = [];
+    if (el('analyticsMonthNav')) {
+        if (analyticsPeriod === 'month') el('analyticsMonthNav').classList.remove('hidden');
+        else el('analyticsMonthNav').classList.add('hidden');
+    }
     
-    // 16 categories aggregate data storage
-    const categoryValues = {};
-    Object.keys(categoryMeta).forEach(k => {
-        categoryValues[k] = [];
-    });
-    
-    let activeBudgetCats = {};
+    let labels = [];
+    let titleStr = '';
+    let txns = [];
     
     if (analyticsPeriod === 'month') {
-        // --- MONTHLY AGGREGATE ---
-        resolvedTxns = getMonthlyResolvedTransactions(year, month);
-        activeBudgetCats = getActiveBudgetForMonth(currentMonth);
-
-        const lastDay = new Date(year, month + 1, 0).getDate();
-        chartLabels = Array.from({ length: lastDay }, (_, i) => `${i + 1}日`);
-        
-        // Initialize values array for each category (size = days in month)
-        Object.keys(categoryMeta).forEach(k => {
-            categoryValues[k] = Array(lastDay).fill(0);
-        });
-        
-        resolvedTxns.forEach(t => {
-            const dateObj = new Date(t.date);
-            const dateIndex = dateObj.getDate() - 1;
-            if (dateIndex >= 0 && dateIndex < lastDay) {
-                t.items.forEach(item => {
-                    const cat = item.category || 'others';
-                    const targetCat = categoryValues.hasOwnProperty(cat) ? cat : 'others';
-                    categoryValues[targetCat][dateIndex] += item.price;
-                });
-            }
-        });
-        
-        trendChartTitle.innerText = "日別支出の内訳 (カテゴリ別積み上げ)";
-        if (trendChartIcon) trendChartIcon.setAttribute('data-lucide', 'bar-chart-3');
-    } 
-    else if (analyticsPeriod === 'quarter') {
-        // --- QUARTERLY AGGREGATE ---
-        const currentQuarter = Math.floor(month / 3); // 0, 1, 2, 3
-        const quarterMonths = [currentQuarter * 3, currentQuarter * 3 + 1, currentQuarter * 3 + 2];
-        
-        quarterMonths.forEach(m => {
-            const monthlyList = getMonthlyResolvedTransactions(year, m);
-            resolvedTxns = resolvedTxns.concat(monthlyList);
-            
-            const bCats = getActiveBudgetForMonth(new Date(year, m, 1));
-            Object.keys(bCats).forEach(cat => {
-                activeBudgetCats[cat] = (activeBudgetCats[cat] || 0) + bCats[cat];
-            });
-        });
-
-        chartLabels = ["第1四半期 (1-3月)", "第2四半期 (4-6月)", "第3四半期 (7-9月)", "第4四半期 (10-12月)"];
-        
-        // Initialize values array for each category (size = 4 quarters)
-        Object.keys(categoryMeta).forEach(k => {
-            categoryValues[k] = Array(4).fill(0);
-        });
-        
-        for (let q = 0; q < 4; q++) {
-            const qMonths = [q * 3, q * 3 + 1, q * 3 + 2];
-            qMonths.forEach(m => {
-                const list = getMonthlyResolvedTransactions(year, m);
-                list.forEach(t => {
-                    t.items.forEach(item => {
-                        const cat = item.category || 'others';
-                        const targetCat = categoryValues.hasOwnProperty(cat) ? cat : 'others';
-                        categoryValues[targetCat][q] += item.price;
-                    });
-                });
-            });
-        }
-        
-        trendChartTitle.innerText = `${year}年 四半期別の支出内訳 (カテゴリ別積み上げ)`;
-        if (trendChartIcon) trendChartIcon.setAttribute('data-lucide', 'bar-chart-2');
-    } 
-    else if (analyticsPeriod === 'year') {
-        // --- YEARLY AGGREGATE ---
-        for (let m = 0; m < 12; m++) {
-            const monthlyList = getMonthlyResolvedTransactions(year, m);
-            resolvedTxns = resolvedTxns.concat(monthlyList);
-            
-            const bCats = getActiveBudgetForMonth(new Date(year, m, 1));
-            Object.keys(bCats).forEach(cat => {
-                activeBudgetCats[cat] = (activeBudgetCats[cat] || 0) + bCats[cat];
-            });
-        }
-
-        chartLabels = Array.from({ length: 12 }, (_, i) => `${i + 1}月`);
-        
-        // Initialize values array for each category (size = 12 months)
-        Object.keys(categoryMeta).forEach(k => {
-            categoryValues[k] = Array(12).fill(0);
-        });
-        
-        for (let m = 0; m < 12; m++) {
-            const list = getMonthlyResolvedTransactions(year, m);
-            list.forEach(t => {
-                t.items.forEach(item => {
-                    const cat = item.category || 'others';
-                    const targetCat = categoryValues.hasOwnProperty(cat) ? cat : 'others';
-                    categoryValues[targetCat][m] += item.price;
-                });
-            });
-        }
-        
-        trendChartTitle.innerText = `${year}年 月別支出の内訳 (カテゴリ別積み上げ)`;
-        if (trendChartIcon) trendChartIcon.setAttribute('data-lucide', 'calendar');
+        titleStr = `${year}年${month}月 の分析`;
+        const daysInMonth = new Date(year, month, 0).getDate();
+        for(let i=1; i<=daysInMonth; i++) labels.push(`${i}日`);
+        txns = getMonthlyResolvedTransactions(year, month);
+    } else if (analyticsPeriod === 'quarter') {
+        const q = Math.ceil(month/3);
+        titleStr = `${year}年 Q${q} の分析`;
+        labels = [`Q1 (1-3月)`,`Q2 (4-6月)`,`Q3 (7-9月)`,`Q4 (10-12月)`];
+        for(let m=1; m<=12; m++) txns = txns.concat(getMonthlyResolvedTransactions(year, m));
+    } else if (analyticsPeriod === 'year') {
+        titleStr = `${year}年 の分析`;
+        for(let i=1; i<=12; i++) labels.push(`${i}月`);
+        for(let m=1; m<=12; m++) txns = txns.concat(getMonthlyResolvedTransactions(year, m));
     }
-
-    // Build Chart datasets representing 16 categories stacked bar
-    const datasets = Object.keys(categoryMeta).map(key => {
-        const meta = categoryMeta[key];
-        return {
-            label: meta.label,
-            data: categoryValues[key],
-            backgroundColor: meta.color,
-            borderColor: meta.color,
-            borderWidth: 1,
-            stack: 'Stack0'
-        };
-    });
-
-    // 1. Draw/Update Chart.js instance (Always type: 'bar' for stacked comparison)
-    const ctx = document.getElementById('dailyTrendChart').getContext('2d');
     
-    // Destroy dailyTrendChartInstance if it was previously created as a different type
-    if (dailyTrendChartInstance && dailyTrendChartInstance.config.type !== 'bar') {
-        dailyTrendChartInstance.destroy();
-        dailyTrendChartInstance = null;
-    }
-
-    if (dailyTrendChartInstance) {
-        dailyTrendChartInstance.data.labels = chartLabels;
-        dailyTrendChartInstance.data.datasets = datasets;
-        dailyTrendChartInstance.update();
-    } else {
-        dailyTrendChartInstance = new Chart(ctx, {
+    if (el('trendChartTitle')) el('trendChartTitle').textContent = titleStr;
+    
+    const datasets = [];
+    const catKeys = Object.keys(categoryMeta);
+    catKeys.forEach(k => {
+        datasets.push({
+            label: categoryMeta[k].label,
+            backgroundColor: categoryMeta[k].color,
+            data: new Array(labels.length).fill(0),
+            stack: 'Stack 0'
+        });
+    });
+    
+    txns.forEach(t => {
+        let labelIndex = -1;
+        const tDate = new Date(t.date);
+        const tMonth = tDate.getMonth() + 1;
+        
+        if (analyticsPeriod === 'month') labelIndex = parseInt(t.date.split('-')[2]) - 1;
+        else if (analyticsPeriod === 'quarter') labelIndex = Math.ceil(tMonth/3) - 1;
+        else if (analyticsPeriod === 'year') labelIndex = tMonth - 1;
+        
+        if (labelIndex >= 0 && labelIndex < labels.length) {
+            t.items.forEach(item => {
+                const catIdx = catKeys.indexOf(item.category || 'others');
+                if (catIdx > -1) datasets[catIdx].data[labelIndex] += item.price;
+            });
+        }
+    });
+    
+    const canvas = el('trendChart');
+    if (canvas) {
+        if (trendChartInstance) trendChartInstance.destroy();
+        const ctx = canvas.getContext('2d');
+        trendChartInstance = new Chart(ctx, {
             type: 'bar',
-            data: {
-                labels: chartLabels,
-                datasets: datasets
-            },
+            data: { labels: labels, datasets: datasets },
             options: {
-                responsive: true,
-                maintainAspectRatio: false,
+                responsive: true, maintainAspectRatio: false,
+                scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
                 plugins: {
-                    legend: {
-                        display: true,
-                        position: 'bottom',
-                        labels: {
-                            color: '#9CA3AF',
-                            font: { family: 'Plus Jakarta Sans', size: 9 },
-                            boxWidth: 8,
-                            padding: 8
-                        }
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                if (context.raw === 0) return null;
-                                return `${context.dataset.label}: ¥${context.raw.toLocaleString()}`;
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    y: {
-                        stacked: true,
-                        ticks: { color: '#9CA3AF' },
-                        grid: { color: 'rgba(255,255,255,0.05)' }
-                    },
-                    x: {
-                        stacked: true,
-                        ticks: { color: '#9CA3AF', maxRotation: 0 },
-                        grid: { display: false }
-                    }
+                    legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } },
+                    tooltip: { callbacks: { label: function(ctx) { return ctx.raw === 0 ? null : `${ctx.dataset.label}: ${ctx.raw.toLocaleString()}円`; } } }
                 }
             }
         });
     }
-
-    // 2. Render Category Budgets vs Spends Table
-    const catSpends = {};
-    Object.keys(categoryMeta).forEach(k => catSpends[k] = 0);
     
-    resolvedTxns.forEach(t => {
-        t.items.forEach(item => {
-            const cat = item.category || 'others';
-            if (catSpends.hasOwnProperty(cat)) {
-                catSpends[cat] += item.price;
-            } else {
-                catSpends.others += item.price;
+    const tableBody = el('categoryAnalysisTableBody');
+    if (tableBody) {
+        tableBody.innerHTML = '';
+        const categorySpends = {};
+        catKeys.forEach(k => categorySpends[k] = 0);
+        txns.forEach(t => t.items.forEach(i => categorySpends[i.category || 'others'] += i.price));
+        
+        let activeBudget = analyticsPeriod === 'month' ? getActiveBudgetForMonth(currentMonth) : {};
+        const sortedCats = catKeys.map(k => ({key: k, spent: categorySpends[k]})).sort((a,b) => b.spent - a.spent);
+        
+        sortedCats.forEach(sc => {
+            if (sc.spent > 0 || (activeBudget[sc.key] && activeBudget[sc.key] > 0)) {
+                const meta = categoryMeta[sc.key];
+                const budget = activeBudget[sc.key] || 0;
+                let pct = budget > 0 ? ((sc.spent/budget)*100).toFixed(1) + '%' : '-';
+                
+                const tr = document.createElement('tr');
+                tr.className = 'border-b hover:bg-gray-50';
+                tr.innerHTML = `
+                    <td class="py-2 px-2 text-sm flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: ${meta.color}"></span> ${meta.label}</td>
+                    <td class="py-2 px-2 text-right text-sm">${sc.spent.toLocaleString()}円</td>
+                    <td class="py-2 px-2 text-right text-sm text-gray-500">${budget > 0 ? budget.toLocaleString() + '円' : '-'}</td>
+                    <td class="py-2 px-2 text-right text-sm ${sc.spent > budget && budget > 0 ? 'text-red-500 font-bold' : ''}">${pct}</td>
+                `;
+                tableBody.appendChild(tr);
             }
         });
-    });
-
-    const tableBody = document.getElementById('categoryAnalysisTableBody');
-    tableBody.innerHTML = '';
-
-    Object.keys(categoryMeta).forEach(key => {
-        const meta = categoryMeta[key];
-        const spend = catSpends[key];
-        const budget = activeBudgetCats[key] || 0;
-        const percent = budget > 0 ? (spend / budget) * 100 : 0;
-        const remaining = budget - spend;
-        
-        let progressColor = 'background: var(--primary);';
-        if (percent > 100) {
-            progressColor = 'background: linear-gradient(90deg, var(--danger) 0%, #F59E0B 100%);';
-        } else if (percent > 80) {
-            progressColor = 'background: #F59E0B;';
-        }
-
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td><span class="badge ${meta.class}">${meta.label}</span></td>
-            <td style="font-weight: 700;">¥${spend.toLocaleString()}</td>
-            <td style="color: var(--text-muted);">${budget > 0 ? '¥' + budget.toLocaleString() : '未設定'}</td>
-            <td>
-                <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:4px;">
-                    <span>${Math.round(percent)}%</span>
-                    <span style="color: ${remaining < 0 ? 'var(--danger)' : 'var(--text-muted)'};">
-                        ${remaining >= 0 ? '残: ¥' + remaining.toLocaleString() : '超過: ¥' + Math.abs(remaining).toLocaleString()}
-                    </span>
-                </div>
-                <div style="background: rgba(255,255,255,0.05); height: 6px; border-radius: 3px; overflow: hidden; width: 100%;">
-                    <div style="height: 100%; width: ${Math.min(100, percent)}%; ${progressColor} transition: width 0.3s ease;"></div>
-                </div>
-            </td>
-        `;
-        tableBody.appendChild(tr);
-    });
-
-    // 3. Render Top 10 Expensive Items Purchased (Expanded from 5 to 10)
-    const allItems = [];
-    resolvedTxns.forEach(t => {
-        t.items.forEach(item => {
-            allItems.push({
-                name: item.name,
-                price: item.price,
-                category: item.category || 'others',
-                store: t.storeName,
-                date: t.date
-            });
-        });
-    });
-
-    allItems.sort((a, b) => b.price - a.price);
-    const top10 = allItems.slice(0, 10);
-
-    const rankingContainer = document.getElementById('topExpensiveItemsList');
-    rankingContainer.innerHTML = '';
+    }
     
-    if (top10.length === 0) {
-        rankingContainer.innerHTML = `<p style="text-align:center; padding: 20px; color: var(--text-muted);">データがありません。</p>`;
-    } else {
-        top10.forEach((item, index) => {
-            const meta = categoryMeta[item.category] || categoryMeta.others;
-            const rankCard = document.createElement('div');
-            rankCard.className = 'ranking-card';
-            rankCard.innerHTML = `
-                <div class="ranking-num">${index + 1}</div>
-                <div class="ranking-details">
-                    <div style="font-weight:600; font-size:13px;">${item.name}</div>
-                    <div style="font-size:11px; color:var(--text-muted); display:flex; gap:8px;">
-                        <span>${item.store}</span>
-                        <span>(${item.date})</span>
-                    </div>
-                </div>
-                <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
-                    <strong style="color:#FFF; font-size:14px;">¥${item.price.toLocaleString()}</strong>
-                    <span class="badge ${meta.class}">${meta.label}</span>
-                </div>
-            `;
-            rankingContainer.appendChild(rankCard);
+    const topItemsList = el('topExpensiveItemsList');
+    const topStoresList = el('topStoresList');
+    
+    if (topItemsList) {
+        topItemsList.innerHTML = '';
+        let allItems = [];
+        txns.forEach(t => t.items.forEach(i => allItems.push({name: i.name, price: i.price, date: t.date, store: t.storeName})));
+        allItems.sort((a,b) => b.price - a.price);
+        allItems.slice(0,10).forEach((item, idx) => {
+            const li = document.createElement('li');
+            li.className = 'flex justify-between items-center text-sm py-1 border-b border-gray-100 last:border-0';
+            li.innerHTML = `<div class="flex items-center gap-2 overflow-hidden"><span class="font-bold text-gray-400 w-4">${idx+1}.</span><span class="truncate">${item.name} <span class="text-xs text-gray-400">(${item.store})</span></span></div><span class="font-bold">${item.price.toLocaleString()}円</span>`;
+            topItemsList.appendChild(li);
         });
     }
-
-    // 4. Render Top 10 Stores Spend Rankings
-    const storeData = {};
-    resolvedTxns.forEach(t => {
-        const store = t.storeName || "不明な店舗・用途";
-        if (!storeData[store]) {
-            storeData[store] = { total: 0, count: 0 };
-        }
-        storeData[store].total += t.total;
-        storeData[store].count += 1;
-    });
     
-    const sortedStores = Object.keys(storeData).map(name => {
-        return {
-            name: name,
-            total: storeData[name].total,
-            count: storeData[name].count
-        };
-    });
-    sortedStores.sort((a, b) => b.total - a.total);
-    const top10Stores = sortedStores.slice(0, 10);
-    
-    const storeRankingContainer = document.getElementById('topStoresList');
-    if (storeRankingContainer) {
-        storeRankingContainer.innerHTML = '';
-        
-        if (top10Stores.length === 0) {
-            storeRankingContainer.innerHTML = `<p style="text-align:center; padding: 20px; color: var(--text-muted);">データがありません。</p>`;
-        } else {
-            top10Stores.forEach((store, index) => {
-                const rankCard = document.createElement('div');
-                rankCard.className = 'ranking-card';
-                rankCard.innerHTML = `
-                    <div class="ranking-num">${index + 1}</div>
-                    <div class="ranking-details">
-                        <div style="font-weight:600; font-size:13px;">${store.name}</div>
-                        <div style="font-size:11px; color:var(--text-muted);">
-                            利用回数: ${store.count} 回
-                        </div>
-                    </div>
-                    <div style="display:flex; flex-direction:column; align-items:flex-end;">
-                        <strong style="color:#FFF; font-size:14px;">¥${store.total.toLocaleString()}</strong>
-                    </div>
-                `;
-                storeRankingContainer.appendChild(rankCard);
-            });
-        }
+    if (topStoresList) {
+        topStoresList.innerHTML = '';
+        const stores = {};
+        txns.forEach(t => {
+            if(!stores[t.storeName]) stores[t.storeName] = { total: 0, count: 0 };
+            stores[t.storeName].total += t.total;
+            stores[t.storeName].count += 1;
+        });
+        const storeArr = Object.keys(stores).map(k => ({name: k, ...stores[k]})).sort((a,b) => b.total - a.total);
+        storeArr.slice(0,10).forEach((st, idx) => {
+            const li = document.createElement('li');
+            li.className = 'flex justify-between items-center text-sm py-1 border-b border-gray-100 last:border-0';
+            li.innerHTML = `<div class="flex items-center gap-2 overflow-hidden"><span class="font-bold text-gray-400 w-4">${idx+1}.</span><span class="truncate">${st.name} <span class="text-xs text-gray-400">${st.count}回利用</span></span></div><span class="font-bold">${st.total.toLocaleString()}円</span>`;
+            topStoresList.appendChild(li);
+        });
     }
+    
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
 
-
-// Chart.js Category doughnut init
+// 21. Category Doughnut Charts
 function initCharts() {
-    const canvases = document.querySelectorAll('.categoryChartCanvas');
-    categoryCharts = [];
-    
-    canvases.forEach(canvas => {
+    qsa('.categoryChartCanvas').forEach(canvas => {
         const ctx = canvas.getContext('2d');
         const chart = new Chart(ctx, {
             type: 'doughnut',
-            data: {
-                labels: Object.values(categoryMeta).map(m => m.label),
-                datasets: [{
-                    data: Array(Object.keys(categoryMeta).length).fill(0),
-                    backgroundColor: Object.values(categoryMeta).map(m => m.color),
-                    borderWidth: 1,
-                    borderColor: '#1F2937'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'bottom',
-                        labels: {
-                            color: '#9CA3AF',
-                            font: { family: 'Plus Jakarta Sans', size: 9 },
-                            boxWidth: 8
-                        }
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                return `${context.label}: ¥${context.raw.toLocaleString()}`;
-                            }
-                        }
-                    }
-                },
-                cutout: '65%'
-            }
+            data: { labels: ['データなし'], datasets: [{ data: [1], backgroundColor: ['#e5e7eb'] }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } } }, cutout: '60%' }
         });
         categoryCharts.push(chart);
     });
 }
-
-// Sync category data across all categoryCharts
-function updateCategoryCharts(monthlyTxns = []) {
-    if (categoryCharts.length === 0) return;
+function updateCategoryCharts(monthlyTxns) {
+    const spends = {};
+    Object.keys(categoryMeta).forEach(k => spends[k] = 0);
     
-    const catSums = {};
-    Object.keys(categoryMeta).forEach(k => catSums[k] = 0);
+    let total = 0;
+    monthlyTxns.forEach(t => t.items.forEach(item => {
+        spends[item.category || 'others'] += item.price;
+        total += item.price;
+    }));
     
-    monthlyTxns.forEach(t => {
-        if (t.items && t.items.length > 0) {
-            t.items.forEach(item => {
-                const cat = item.category || 'others';
-                if (catSums.hasOwnProperty(cat)) {
-                    catSums[cat] += item.price;
-                } else {
-                    catSums.others += item.price;
-                }
-            });
-        } else {
-            catSums.others += t.total;
-        }
-    });
+    const labels = [];
+    const data = [];
+    const bg = [];
     
-    const dataset = Object.keys(categoryMeta).map(key => catSums[key]);
-    const hasData = dataset.some(val => val > 0);
+    if (total === 0) {
+        labels.push('データなし');
+        data.push(1);
+        bg.push('#e5e7eb');
+    } else {
+        Object.entries(categoryMeta).forEach(([k, meta]) => {
+            if (spends[k] > 0) {
+                labels.push(meta.label);
+                data.push(spends[k]);
+                bg.push(meta.color);
+            }
+        });
+    }
     
     categoryCharts.forEach(chart => {
-        if (!hasData) {
-            chart.data.datasets[0].data = [1];
-            chart.data.datasets[0].backgroundColor = ['#1F2937'];
-            chart.data.labels = ['データなし'];
-        } else {
-            chart.data.datasets[0].data = dataset;
-            chart.data.datasets[0].backgroundColor = Object.values(categoryMeta).map(m => m.color);
-            chart.data.labels = Object.values(categoryMeta).map(m => m.label);
-        }
+        chart.data.labels = labels;
+        chart.data.datasets[0].data = data;
+        chart.data.datasets[0].backgroundColor = bg;
         chart.update();
     });
 }
 
-// Export budget data as CSV
+// 22. CSV Export
 function exportToCsv() {
-    if (transactions.length === 0) {
-        showToast('保存された家計簿データがありません。', 'error');
-        return;
-    }
-
-    let csvContent = "\uFEFF"; // UTF-8 BOM
+    if (transactions.length === 0) { showToast('エクスポートするデータがありません', 'error'); return; }
+    
+    let csvContent = '\uFEFF';
     csvContent += "ID,店舗名,日付,品目名,カテゴリ,価格\n";
-
+    
     transactions.forEach(t => {
-        const storeEscaped = t.storeName.replace(/"/g, '""');
-        
-        if (t.items && t.items.length > 0) {
+        if (t.items && t.items.length) {
             t.items.forEach(item => {
-                const catLabel = (categoryMeta[item.category] || categoryMeta.others).label;
-                const nameEscaped = item.name.replace(/"/g, '""');
-                csvContent += `"${t.id}","${storeEscaped}","${t.date}","${nameEscaped}","${catLabel}",${item.price}\n`;
+                const catLabel = categoryMeta[item.category] ? categoryMeta[item.category].label : 'その他';
+                csvContent += `${t.id},"${t.storeName.replace(/"/g, '""')}",${t.date},"${item.name.replace(/"/g, '""')}",${catLabel},${item.price}\n`;
             });
         } else {
-            csvContent += `"${t.id}","${storeEscaped}","${t.date}","レシート合計","その他",${t.total}\n`;
+            csvContent += `${t.id},"${t.storeName.replace(/"/g, '""')}",${t.date},"まとめ入力",その他,${t.total}\n`;
         }
     });
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
     
-    const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '_');
-    link.setAttribute("download", `receipt_data_${dateStr}.csv`);
-    link.style.visibility = 'hidden';
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `receipts_export_${new Date().toISOString().split('T')[0]}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
-    showToast('CSVデータを出力しました！', 'success');
 }
 
-// ----------------- CSV Import (Data Restore / Merge Sync) -----------------
-
+// 23. CSV Import
 function importFromCsv(e) {
     const file = e.target.files[0];
     if (!file) return;
-
+    
     const reader = new FileReader();
-    reader.onload = function(evt) {
-        const text = evt.target.result;
+    reader.onload = (event) => {
         try {
-            const importedTransactions = parseCsvData(text);
-            
-            if (importedTransactions.length === 0) {
-                showToast('有効なCSVデータが見つかりませんでした。', 'error');
-                return;
-            }
-
-            // Merge imported transactions with existing ones, prioritizing imported ones if ID matches
-            let mergedCount = 0;
-            importedTransactions.forEach(impTxn => {
-                const existingIdx = transactions.findIndex(t => t.id === impTxn.id);
-                if (existingIdx !== -1) {
-                    transactions[existingIdx] = impTxn; // Overwrite
-                } else {
-                    transactions.push(impTxn); // Append
-                    mergedCount++;
-                }
-            });
-
-            // Sort transactions by date descending
-            transactions.sort((a, b) => b.date.localeCompare(a.date));
-            
-            localStorage.setItem('receipt_transactions', JSON.stringify(transactions));
-            showToast(`${importedTransactions.length}件のデータを取り込みました（新規登録: ${mergedCount}件）！`, 'success');
-            
-            // Refresh
+            parseCsvData(event.target.result);
+            saveTransactionsToStorage();
             updateDashboard();
-            csvFileInput.value = ''; // Reset file input
-            
-        } catch (err) {
-            console.error('Import CSV Parse Error:', err);
-            showToast('CSVのパースに失敗しました。ファイル形式を確認してください。', 'error');
+            showToast('CSVインポート完了', 'success');
+        } catch(err) {
+            showToast('CSVパースエラー', 'error');
         }
     };
     reader.readAsText(file);
+    e.target.value = '';
+}
+function parseCsvData(csvText) {
+    const lines = csvText.split('\n').filter(l => l.trim().length > 0);
+    if (lines.length <= 1) return;
+    
+    const reverseCatMap = {};
+    Object.entries(categoryMeta).forEach(([k, v]) => reverseCatMap[v.label] = k);
+    
+    const importedTxns = {};
+    for (let i = 1; i < lines.length; i++) {
+        let line = lines[i].trim();
+        const row = [];
+        let inQuotes = false;
+        let val = '';
+        for(let c=0; c<line.length; c++) {
+            let char = line[c];
+            if(char === '"') inQuotes = !inQuotes;
+            else if(char === ',' && !inQuotes) { row.push(val); val = ''; }
+            else val += char;
+        }
+        row.push(val);
+        
+        if (row.length < 6) continue;
+        
+        const id = row[0].replace(/"/g, '').trim();
+        const storeName = row[1].replace(/"/g, '').trim();
+        const date = row[2].replace(/"/g, '').trim();
+        const itemName = row[3].replace(/"/g, '').trim();
+        const catLabel = row[4].replace(/"/g, '').trim();
+        const price = parseInt(row[5].replace(/"/g, '').trim()) || 0;
+        
+        if (!importedTxns[id]) importedTxns[id] = { id, storeName, date, total: 0, items: [] };
+        
+        const catKey = reverseCatMap[catLabel] || 'others';
+        importedTxns[id].items.push({ name: itemName, price, category: catKey });
+        importedTxns[id].total += price;
+    }
+    
+    Object.values(importedTxns).forEach(impTx => {
+        const existIdx = transactions.findIndex(t => t.id === impTx.id);
+        if (existIdx > -1) transactions[existIdx] = impTx;
+        else transactions.push(impTx);
+    });
 }
 
-// Parse CSV text back to structured Transactions array
-function parseCsvData(csvText) {
-    const lines = csvText.split('\n');
-    if (lines.length <= 1) return [];
-
-    const txnsMap = {};
-    const labelToKeyMap = {};
-    Object.keys(categoryMeta).forEach(k => labelToKeyMap[categoryMeta[k].label] = k);
-
-    // CSV fields helper parser to handle double quoted commas
-    function parseCsvLine(text) {
-        let p = '', r = [];
-        let q = false;
-        for (let i = 0; i < text.length; i++) {
-            let c = text[i];
-            if (c === '"') {
-                q = !q;
-            } else if (c === ',' && !q) {
-                r.push(p);
-                p = '';
-            } else {
-                p += c;
+// 24. Event Listeners Setup
+function setupEventListeners() {
+    if (el('openSettingsBtn')) el('openSettingsBtn').addEventListener('click', openSettingsModal);
+    if (el('closeSettingsBtn')) el('closeSettingsBtn').addEventListener('click', closeSettingsModal);
+    if (el('saveApiKeyBtn')) el('saveApiKeyBtn').addEventListener('click', saveApiKey);
+    if (el('clearApiKeyBtn')) el('clearApiKeyBtn').addEventListener('click', clearApiKey);
+    
+    const dropzone = el('dropzone');
+    if (dropzone) {
+        dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('border-blue-500', 'bg-blue-50'); });
+        dropzone.addEventListener('dragleave', e => { e.preventDefault(); dropzone.classList.remove('border-blue-500', 'bg-blue-50'); });
+        dropzone.addEventListener('drop', e => {
+            e.preventDefault();
+            dropzone.classList.remove('border-blue-500', 'bg-blue-50');
+            if (e.dataTransfer.files.length) {
+                const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+                if (files.length === 1) processSingleFile(files[0]);
+                else if (files.length > 1) processBulkFiles(files);
             }
-        }
-        r.push(p);
-        return r;
-    }
-
-    // Skip header line
-    for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue;
-
-        const cells = parseCsvLine(line);
-        if (cells.length < 6) continue;
-
-        const id = cells[0].trim();
-        const storeName = cells[1].trim();
-        const date = cells[2].trim();
-        const itemName = cells[3].trim();
-        const catLabel = cells[4].trim();
-        const price = parseInt(cells[5]) || 0;
-
-        const categoryKey = labelToKeyMap[catLabel] || 'others';
-
-        if (!txnsMap[id]) {
-            txnsMap[id] = {
-                id: id,
-                storeName: storeName,
-                date: date,
-                total: 0,
-                items: []
-            };
-        }
-
-        txnsMap[id].items.push({
-            name: itemName,
-            price: price,
-            category: categoryKey
         });
-        txnsMap[id].total += price;
+        dropzone.addEventListener('click', () => { if(el('fileInput')) el('fileInput').click(); });
     }
-
-    return Object.values(txnsMap);
+    if (el('fileInput')) el('fileInput').addEventListener('change', handleFileSelect);
+    
+    if (el('manualInputBtn')) el('manualInputBtn').addEventListener('click', startManualInput);
+    if (el('exportCsvBtn')) el('exportCsvBtn').addEventListener('click', exportToCsv);
+    if (el('importCsvBtn')) el('importCsvBtn').addEventListener('click', () => { if(el('csvFileInput')) el('csvFileInput').click(); });
+    if (el('csvFileInput')) el('csvFileInput').addEventListener('change', importFromCsv);
+    
+    if (el('addItemBtn')) el('addItemBtn').addEventListener('click', () => addReceiptItem());
+    if (el('saveReceiptBtn')) el('saveReceiptBtn').addEventListener('click', saveCurrentTransaction);
+    if (el('cancelEditBtn')) el('cancelEditBtn').addEventListener('click', resetScannerState);
+    
+    if (el('saveBudgetBtn')) el('saveBudgetBtn').addEventListener('click', saveBudgetPeriod);
+    if (el('resetBudgetFormBtn')) el('resetBudgetFormBtn').addEventListener('click', resetBudgetForm);
+    
+    if (el('saveRecurringBtn')) el('saveRecurringBtn').addEventListener('click', saveRecurringExpense);
+    if (el('resetRecurringFormBtn')) el('resetRecurringFormBtn').addEventListener('click', resetRecurringForm);
+    
+    if (el('startCameraBtn')) el('startCameraBtn').addEventListener('click', startContinuousCamera);
+    if (el('closeCameraBtn')) el('closeCameraBtn').addEventListener('click', stopContinuousCamera);
+    if (el('shutterBtn')) el('shutterBtn').addEventListener('click', captureSnapshot);
+    if (el('processCapturedBtn')) el('processCapturedBtn').addEventListener('click', submitCapturedImages);
+    
+    if (el('closeDayDetailBtn')) el('closeDayDetailBtn').addEventListener('click', closeDayModal);
+    if (el('closeDayDetailModalBtn')) el('closeDayDetailModalBtn').addEventListener('click', closeDayModal);
+    
+    qsa('.analyticsPeriodToggle').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            qsa('.analyticsPeriodToggle').forEach(b => {
+                b.classList.remove('bg-blue-600', 'text-white');
+                b.classList.add('bg-white', 'text-gray-700');
+            });
+            e.currentTarget.classList.add('bg-blue-600', 'text-white');
+            e.currentTarget.classList.remove('bg-white', 'text-gray-700');
+            
+            analyticsPeriod = e.currentTarget.getAttribute('data-period');
+            updateAnalyticsView();
+        });
+    });
 }
