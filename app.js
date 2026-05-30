@@ -1,4 +1,8 @@
-// Constants
+/* ============================================================
+   SmartReceipt — Client-side SPA Application Logic
+   ============================================================ */
+
+// 1. Constants & Meta Config
 const categoryMeta = {
     food: { label: '食費', class: 'food', color: '#F59E0B' },
     dining: { label: '外食費', class: 'dining', color: '#EF4444' },
@@ -18,505 +22,877 @@ const categoryMeta = {
     others: { label: 'その他', class: 'others', color: '#6B7280' }
 };
 
+// Mock data list for fallback / demo mode
 const mockReceipts = [
-    { storeName: 'セブンイレブン 渋谷店', date: '', total: 1280, items: [{name: 'おにぎり 鮭', price: 160, category: 'food'}, {name: 'サンドイッチ', price: 320, category: 'food'}, {name: '緑茶 500ml', price: 150, category: 'food'}, {name: '週刊誌', price: 450, category: 'entertainment'}, {name: '電池 単3', price: 200, category: 'shopping'}] },
-    { storeName: 'イオンモール 幕張', date: '', total: 4580, items: [{name: 'Tシャツ', price: 1990, category: 'clothing'}, {name: 'トイレットペーパー', price: 398, category: 'shopping'}, {name: '洗剤', price: 298, category: 'shopping'}, {name: 'お菓子詰め合わせ', price: 598, category: 'food'}, {name: 'ノート 3冊セット', price: 296, category: 'shopping'}, {name: 'USB充電ケーブル', price: 1000, category: 'furniture'}] },
-    { storeName: 'スターバックス 新宿', date: '', total: 1740, items: [{name: 'カフェラテ Grande', price: 490, category: 'dining'}, {name: 'キャラメルフラペチーノ', price: 590, category: 'dining'}, {name: 'チョコレートケーキ', price: 440, category: 'dining'}, {name: 'ドリップコーヒー', price: 220, category: 'dining'}] },
-    { storeName: 'ドン・キホーテ 池袋', date: '', total: 3250, items: [{name: 'プロテイン 1kg', price: 2480, category: 'food'}, {name: 'エナジードリンク 6本', price: 770, category: 'luxuries'}] },
-    { storeName: 'ユニクロ 銀座店', date: '', total: 5970, items: [{name: 'フリースジャケット', price: 2990, category: 'clothing'}, {name: 'ヒートテック 2枚組', price: 1990, category: 'clothing'}, {name: '靴下 3足セット', price: 990, category: 'clothing'}] }
+    { storeName: 'セブンイレブン 渋谷中央店', total: 1120, items: [{name: '炭火焼鳥おにぎり', price: 160, category: 'food'}, {name: 'ツナマヨサンドイッチ', price: 340, category: 'food'}, {name: 'のむヨーグルト', price: 180, category: 'food'}, {name: 'アルカリ乾電池 単3', price: 440, category: 'shopping'}] },
+    { storeName: 'イオンモール 幕張新都心', total: 4720, items: [{name: '綿100%Tシャツ', price: 1980, category: 'clothing'}, {name: '抗菌洗濯洗剤ボトル', price: 320, category: 'shopping'}, {name: 'BOXティッシュ 5箱', price: 450, category: 'shopping'}, {name: 'こだわりヨーグルト 4個パック', price: 280, category: 'food'}, {name: 'USB Type-C急速充電器', price: 1690, category: 'furniture'}] },
+    { storeName: 'スターバックス 新宿サザンテラス', total: 1610, items: [{name: 'スターバックスラテ Tall', price: 490, category: 'dining'}, {name: 'チョコレートスコーン', price: 340, category: 'dining'}, {name: 'ドリップコーヒー Grande', price: 435, category: 'dining'}, {name: 'バタースコッチドーナツ', price: 345, category: 'dining'}] },
+    { storeName: 'マツモトキヨシ 池袋東口店', total: 3120, items: [{name: 'マルチビタミン 60日分', price: 1980, category: 'medical'}, {name: '保湿リップクリーム', price: 440, category: 'shopping'}, {name: '除菌ウェットティッシュ 3個組', price: 700, category: 'shopping'}] },
+    { storeName: 'ヤオコー スーパーマーケット', total: 2450, items: [{name: '国産鶏むね肉 600g', price: 580, category: 'food'}, {name: '長野県産コシヒカリ 2kg', price: 1280, category: 'food'}, {name: '有機牛乳 1000ml', price: 290, category: 'food'}, {name: 'アサヒ スーパードライ 350ml', price: 300, category: 'luxuries'}] }
 ];
 
-// Global State
+// 2. Global State Variables
 let transactions = [];
 let budgets = [];
 let recurringExpenses = [];
-let categoryCharts = [];
+let categoryDoughnutCharts = [];
 let trendChartInstance = null;
-let currentScannedData = null;
+
+let currentMonth = new Date();
+let activeFilterDate = null;
+let analyticsPeriod = 'month'; // 'month' | 'quarter' | 'year'
+
+let cameraStream = null;
+let capturedImages = [];
+let apiKey = '';
+
+// Active state for editing
 let editingTransactionId = null;
 let editingBudgetPeriodId = null;
 let editingRecurringId = null;
-let currentMonth = new Date();
-let activeFilterDate = null;
-let analyticsPeriod = 'month';
-let cameraStream = null;
-let capturedImages = [];
 
-let apiKey = '';
-
-// Helper for DOM IDs
+// Helpers
 const el = (id) => document.getElementById(id);
 const qsa = (sel) => document.querySelectorAll(sel);
 const qs = (sel) => document.querySelector(sel);
 
-// 1. App State & Initialization
+// 3. Application Lifecycle
 document.addEventListener('DOMContentLoaded', () => {
-    loadApiKey();
-    loadTransactions();
-    loadBudgets();
-    loadRecurringExpenses();
-    buildBudgetInputs();
-    buildRecurringCategorySelect();
-    initTabNavigation();
-    initMonthSelector();
-    initCharts();
-    setupEventListeners();
-    updateDashboard();
-
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
+    try {
+        loadSettings();
+        loadData();
+        
+        // Render dynamic selections and components
+        buildBudgetInputs();
+        buildRecurringCategorySelect();
+        
+        initTabNavigation();
+        initMonthSelector();
+        initCharts();
+        
+        setupEventListeners();
+        
+        // Render initial view
+        updateDashboard();
+        
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    } catch (e) {
+        console.error("SmartReceipt initialization error: ", e);
+        showToast("初期化中にエラーが発生しました。リロードしてください。", "error");
     }
 });
 
-// 2. Toast Notifications
-function showToast(message, type = 'info') {
-    const container = el('toastContainer');
-    if (!container) return;
-    const toast = document.createElement('div');
-    toast.className = `p-4 rounded shadow-lg text-white font-bold transition-opacity duration-300 ${type === 'error' ? 'bg-red-500' : 'bg-green-500'}`;
-    toast.innerText = message;
-    container.appendChild(toast);
-    setTimeout(() => {
-        toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
-}
-
-// 3. API Key Management
-function loadApiKey() {
+// 4. Data Storage Access
+function loadSettings() {
     apiKey = localStorage.getItem('gemini_api_key') || '';
     if (el('apiKeyInput')) el('apiKeyInput').value = apiKey;
     updateApiKeyStatus();
 }
-function saveApiKey() {
-    const key = el('apiKeyInput').value.trim();
-    localStorage.setItem('gemini_api_key', key);
-    apiKey = key;
-    updateApiKeyStatus();
-    showToast('APIキーを保存しました', 'success');
+
+function loadData() {
+    // Transactions
+    const txnData = localStorage.getItem('receipt_transactions');
+    transactions = txnData ? JSON.parse(txnData) : [];
+    
+    // Budgets
+    const budgetData = localStorage.getItem('receipt_budgets');
+    budgets = budgetData ? JSON.parse(budgetData) : [];
+    
+    // Recurring Costs
+    const recurData = localStorage.getItem('receipt_recurring');
+    recurringExpenses = recurData ? JSON.parse(recurData) : [];
 }
+
+function saveData(key) {
+    if (key === 'transactions') {
+        localStorage.setItem('receipt_transactions', JSON.stringify(transactions));
+    } else if (key === 'budgets') {
+        localStorage.setItem('receipt_budgets', JSON.stringify(budgets));
+    } else if (key === 'recurring') {
+        localStorage.setItem('receipt_recurring', JSON.stringify(recurringExpenses));
+    }
+}
+
+// 5. Toast Notifications (Custom Vanilla Style)
+function showToast(message, type = 'info') {
+    const container = el('toastContainer');
+    if (!container) return;
+    
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    let iconName = 'info';
+    if (type === 'success') iconName = 'check-circle';
+    if (type === 'error') iconName = 'alert-triangle';
+    
+    toast.innerHTML = `<i data-lucide="${iconName}"></i> <span>${message}</span>`;
+    container.appendChild(toast);
+    
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+    
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(40px)';
+        toast.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+        setTimeout(() => toast.remove(), 300);
+    }, 3500);
+}
+
+// 6. API Status Display & Toggle settings
+function updateApiKeyStatus() {
+    const statusBadge = el('apiKeyStatus');
+    if (!statusBadge) return;
+    if (apiKey) {
+        statusBadge.className = 'api-key-badge connected';
+        statusBadge.innerHTML = '<i data-lucide="check-circle"></i> AI解析有効中';
+    } else {
+        statusBadge.className = 'api-key-badge disconnected';
+        statusBadge.innerHTML = '<i data-lucide="info"></i> デモモード';
+    }
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+}
+
+function saveApiKey() {
+    const inputVal = el('apiKeyInput').value.trim();
+    localStorage.setItem('gemini_api_key', inputVal);
+    apiKey = inputVal;
+    updateApiKeyStatus();
+    closeModal('settingsModal');
+    showToast('APIキーを保存しました。', 'success');
+}
+
 function clearApiKey() {
     localStorage.removeItem('gemini_api_key');
     apiKey = '';
-    if (el('apiKeyInput')) el('apiKeyInput').value = '';
+    el('apiKeyInput').value = '';
     updateApiKeyStatus();
-    showToast('APIキーを削除しました', 'info');
+    closeModal('settingsModal');
+    showToast('APIキーを削除しました。デモモードに戻ります。', 'info');
 }
-function updateApiKeyStatus() {
-    const status = el('apiKeyStatus');
-    if (!status) return;
-    if (apiKey) {
-        status.innerHTML = '<span class="text-green-600 bg-green-100 px-2 py-1 rounded text-sm font-bold">接続済み</span>';
-    } else {
-        status.innerHTML = '<span class="text-red-600 bg-red-100 px-2 py-1 rounded text-sm font-bold">未接続</span>';
-    }
-}
-function openSettingsModal() { if(el('settingsModal')) el('settingsModal').classList.remove('hidden'); }
-function closeSettingsModal() { if(el('settingsModal')) el('settingsModal').classList.add('hidden'); }
 
-// 4. Budget Input Builder
-function buildBudgetInputs() {
-    const container = el('budgetInputsContainer');
-    if (!container) return;
-    container.innerHTML = '';
-    Object.entries(categoryMeta).forEach(([key, meta]) => {
-        const row = document.createElement('div');
-        row.className = 'flex items-center justify-between mb-2';
-        row.innerHTML = `
-            <label class="text-sm text-gray-700 w-1/3">${meta.label}</label>
-            <div class="w-2/3 flex items-center">
-                <input type="number" data-category="${key}" class="budget-cat-input w-full p-2 border rounded" placeholder="0" min="0">
-                <span class="ml-2 text-gray-500">円</span>
-            </div>
-        `;
-        container.appendChild(row);
-    });
+// 7. Modals Control System (Active Class Only)
+function openModal(modalId) {
+    const modal = el(modalId);
+    if (modal) modal.classList.add('active');
 }
-function buildRecurringCategorySelect() {
-    const select = el('recurringCategory');
-    if (!select) return;
-    select.innerHTML = '<option value="">カテゴリを選択</option>';
-    Object.entries(categoryMeta).forEach(([key, meta]) => {
-        const option = document.createElement('option');
-        option.value = key;
-        option.textContent = meta.label;
-        select.appendChild(option);
+
+function closeModal(modalId) {
+    const modal = el(modalId);
+    if (modal) modal.classList.remove('active');
+}
+
+// 8. Setup Subpanel states inside Dashboard
+function showDashboardSubpanel(activePanelId) {
+    const panels = ['dropzone', 'scannerContainer', 'editorPanel', 'bulkProgressContainer'];
+    panels.forEach(pid => {
+        const panel = el(pid);
+        if (panel) {
+            if (pid === activePanelId) {
+                panel.classList.add('active');
+            } else {
+                panel.classList.remove('active');
+            }
+        }
     });
 }
 
-// 5. SPA Tab Navigation
+// 9. SPA Tab Controller
 function initTabNavigation() {
     const tabs = qsa('.nav-tab');
     tabs.forEach(tab => {
         tab.addEventListener('click', (e) => {
-            tabs.forEach(t => {
-                t.classList.remove('active', 'text-blue-600', 'border-blue-600');
-                t.classList.add('text-gray-500', 'border-transparent');
-            });
-            e.currentTarget.classList.add('active', 'text-blue-600', 'border-blue-600');
-            e.currentTarget.classList.remove('text-gray-500', 'border-transparent');
+            const selectedTab = e.currentTarget.getAttribute('data-tab');
             
-            const targetId = e.currentTarget.getAttribute('data-target');
+            tabs.forEach(t => t.classList.remove('active'));
+            e.currentTarget.classList.add('active');
+            
             qsa('.view-panel').forEach(panel => {
                 panel.classList.remove('active');
-                panel.classList.add('hidden');
             });
-            const targetPanel = el(targetId);
+            
+            const targetPanel = el(`${selectedTab}View`);
             if (targetPanel) {
                 targetPanel.classList.add('active');
-                targetPanel.classList.remove('hidden');
             }
             
-            if (targetId === 'analytics') {
+            // Tab change actions
+            if (selectedTab === 'analytics') {
                 updateAnalyticsView();
-            } else if (targetId === 'budgets') {
+            } else if (selectedTab === 'budgets') {
                 renderBudgetsList();
                 renderRecurringList();
-            } else if (targetId === 'dashboard') {
+            } else if (selectedTab === 'dashboard') {
                 updateDashboard();
             }
         });
     });
 }
 
-// 6. Month Selector
+// 10. Month Select Navigation
 function initMonthSelector() {
     qsa('.prevMonthBtn').forEach(btn => {
         btn.addEventListener('click', () => {
             currentMonth.setMonth(currentMonth.getMonth() - 1);
             activeFilterDate = null;
-            refreshCurrentView();
+            refreshCurrentTabState();
         });
     });
     qsa('.nextMonthBtn').forEach(btn => {
         btn.addEventListener('click', () => {
             currentMonth.setMonth(currentMonth.getMonth() + 1);
             activeFilterDate = null;
-            refreshCurrentView();
+            refreshCurrentTabState();
         });
     });
     updateMonthLabel();
 }
+
 function updateMonthLabel() {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth() + 1;
-    const label = `${year}年${month}月`;
-    qsa('.currentMonthYearLabel').forEach(labelEl => {
-        labelEl.textContent = label;
+    const labelText = `${year}年${String(month).padStart(2, '0')}月`;
+    qsa('.currentMonthYearLabel').forEach(span => {
+        span.textContent = labelText;
     });
 }
-function refreshCurrentView() {
+
+function refreshCurrentTabState() {
     updateMonthLabel();
-    const activePanel = qs('.view-panel.active');
-    if (activePanel) {
-        if (activePanel.id === 'dashboard') updateDashboard();
-        if (activePanel.id === 'analytics') updateAnalyticsView();
+    const activeView = qs('.view-panel.active');
+    if (activeView) {
+        if (activeView.id === 'dashboardView') updateDashboard();
+        if (activeView.id === 'analyticsView') updateAnalyticsView();
     }
 }
 
-// 7. Budget Period Management
-function loadBudgets() {
-    const stored = localStorage.getItem('receipt_budgets');
-    if (stored) {
-        budgets = JSON.parse(stored);
-    } else {
-        budgets = [];
-    }
-}
-function saveBudgetsToStorage() {
-    localStorage.setItem('receipt_budgets', JSON.stringify(budgets));
-}
-function saveBudgetPeriod() {
-    const startInput = el('budgetStartDate').value;
-    if (!startInput) {
-        showToast('開始月を選択してください', 'error');
-        return;
-    }
+// 11. Budget Inputs dynamically built
+function buildBudgetInputs() {
+    const container = el('budgetInputsContainer');
+    if (!container) return;
+    container.innerHTML = '';
     
-    // Convert YYYY-MM to YYYY-MM-01 and YYYY-MM-[lastday]
-    const [y, m] = startInput.split('-');
-    const startDate = `${y}-${m}-01`;
-    const endDay = new Date(y, m, 0).getDate();
-    const endDate = `${y}-${m}-${endDay}`;
-    
-    const categories = {};
-    qsa('.budget-cat-input').forEach(input => {
-        const cat = input.getAttribute('data-category');
-        const val = parseInt(input.value) || 0;
-        if (val > 0) categories[cat] = val;
-    });
-
-    if (editingBudgetPeriodId) {
-        const index = budgets.findIndex(b => b.id === editingBudgetPeriodId);
-        if (index > -1) {
-            budgets[index] = { ...budgets[index], startDate, endDate, categories };
-            showToast('予算を更新しました', 'success');
-        }
-    } else {
-        const newBudget = {
-            id: 'b-' + Date.now().toString(),
-            startDate,
-            endDate,
-            categories
-        };
-        budgets.push(newBudget);
-        showToast('予算を作成しました', 'success');
-    }
-    
-    saveBudgetsToStorage();
-    resetBudgetForm();
-    renderBudgetsList();
-    if (qs('.view-panel.active')?.id === 'dashboard') updateDashboard();
-}
-function editBudgetPeriod(id) {
-    const b = budgets.find(x => x.id === id);
-    if (!b) return;
-    editingBudgetPeriodId = id;
-    if (el('budgetFormTitle')) el('budgetFormTitle').textContent = '予算を編集';
-    
-    if (el('budgetStartDate')) {
-        el('budgetStartDate').value = b.startDate.substring(0, 7);
-    }
-    
-    qsa('.budget-cat-input').forEach(input => {
-        const cat = input.getAttribute('data-category');
-        input.value = b.categories[cat] || '';
-    });
-}
-function deleteBudgetPeriod(id) {
-    if(!confirm('この予算を削除しますか？')) return;
-    budgets = budgets.filter(b => b.id !== id);
-    saveBudgetsToStorage();
-    renderBudgetsList();
-    if (qs('.view-panel.active')?.id === 'dashboard') updateDashboard();
-    showToast('予算を削除しました', 'info');
-}
-function resetBudgetForm() {
-    editingBudgetPeriodId = null;
-    if (el('budgetFormTitle')) el('budgetFormTitle').textContent = '新しい予算期間を作成';
-    if (el('budgetStartDate')) el('budgetStartDate').value = '';
-    qsa('.budget-cat-input').forEach(i => i.value = '');
-}
-function renderBudgetsList() {
-    const list = el('budgetPeriodsList');
-    if (!list) return;
-    list.innerHTML = '';
-    
-    const sorted = [...budgets].sort((a, b) => b.startDate.localeCompare(a.startDate));
-    
-    sorted.forEach(b => {
-        const total = Object.values(b.categories).reduce((sum, val) => sum + val, 0);
-        const startStr = b.startDate.substring(0, 7).replace('-', '年') + '月';
-        
-        const card = document.createElement('div');
-        card.className = 'bg-white p-4 rounded shadow border border-gray-200 flex justify-between items-center mb-2';
-        card.innerHTML = `
-            <div>
-                <h4 class="font-bold">${startStr}</h4>
-                <p class="text-sm text-gray-600">合計: ${total.toLocaleString()}円 (${Object.keys(b.categories).length}カテゴリ)</p>
-            </div>
-            <div class="flex gap-2">
-                <button class="edit-budget-btn p-2 text-blue-600 hover:bg-blue-50 rounded" data-id="${b.id}"><i data-lucide="edit-2"></i></button>
-                <button class="delete-budget-btn p-2 text-red-600 hover:bg-red-50 rounded" data-id="${b.id}"><i data-lucide="trash-2"></i></button>
+    Object.entries(categoryMeta).forEach(([key, meta]) => {
+        const row = document.createElement('div');
+        row.className = 'budget-form-row';
+        row.innerHTML = `
+            <span class="budget-row-label"><span class="cat-dot" style="background-color:${meta.color}; margin-right:6px;"></span>${meta.label}</span>
+            <div class="budget-row-input-wrapper">
+                <input type="number" data-category="${key}" class="budget-cat-input" placeholder="0" min="0">
+                <span style="font-size:0.8rem;color:var(--text-muted);">円</span>
             </div>
         `;
-        list.appendChild(card);
+        container.appendChild(row);
     });
-    
-    qsa('.edit-budget-btn').forEach(btn => btn.addEventListener('click', (e) => editBudgetPeriod(e.currentTarget.getAttribute('data-id'))));
-    qsa('.delete-budget-btn').forEach(btn => btn.addEventListener('click', (e) => deleteBudgetPeriod(e.currentTarget.getAttribute('data-id'))));
-    
-    if (typeof lucide !== 'undefined') lucide.createIcons();
-}
-function getActiveBudgetForMonth(date) {
-    const yyyymm = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-    const targetDateStr = `${yyyymm}-15`;
-    const active = budgets.find(b => b.startDate <= targetDateStr && b.endDate >= targetDateStr);
-    return active ? active.categories : {};
 }
 
-// 8. Recurring Expenses Management
-function loadRecurringExpenses() {
-    const stored = localStorage.getItem('receipt_recurring');
-    if (stored) {
-        recurringExpenses = JSON.parse(stored);
-    } else {
-        recurringExpenses = [];
-    }
-}
-function saveRecurringToStorage() {
-    localStorage.setItem('receipt_recurring', JSON.stringify(recurringExpenses));
-}
-function saveRecurringExpense() {
-    const name = el('recurringName').value.trim();
-    const amount = parseInt(el('recurringAmount').value) || 0;
-    const category = el('recurringCategory').value;
-    const startDate = el('recurringStartDate').value;
-    const endDate = el('recurringEndDate') ? el('recurringEndDate').value : '';
-    
-    if (!name || amount <= 0 || !category || !startDate) {
-        showToast('必須項目を入力してください', 'error');
-        return;
-    }
-    
-    if (editingRecurringId) {
-        const index = recurringExpenses.findIndex(r => r.id === editingRecurringId);
-        if (index > -1) {
-            recurringExpenses[index] = { ...recurringExpenses[index], name, amount, category, startDate, endDate };
-            showToast('定期支出を更新しました', 'success');
-        }
-    } else {
-        recurringExpenses.push({
-            id: 'r-' + Date.now().toString(),
-            name, amount, category, startDate, endDate
-        });
-        showToast('定期支出を作成しました', 'success');
-    }
-    
-    saveRecurringToStorage();
-    resetRecurringForm();
-    renderRecurringList();
-    if (qs('.view-panel.active')?.id === 'dashboard') updateDashboard();
-}
-function editRecurring(id) {
-    const r = recurringExpenses.find(x => x.id === id);
-    if (!r) return;
-    editingRecurringId = id;
-    if (el('recurringFormTitle')) el('recurringFormTitle').textContent = '定期支出を編集';
-    el('recurringName').value = r.name;
-    el('recurringAmount').value = r.amount;
-    el('recurringCategory').value = r.category;
-    el('recurringStartDate').value = r.startDate;
-    if (el('recurringEndDate')) el('recurringEndDate').value = r.endDate || '';
-}
-function deleteRecurring(id) {
-    if(!confirm('この定期支出を削除しますか？')) return;
-    recurringExpenses = recurringExpenses.filter(r => r.id !== id);
-    saveRecurringToStorage();
-    renderRecurringList();
-    if (qs('.view-panel.active')?.id === 'dashboard') updateDashboard();
-    showToast('定期支出を削除しました', 'info');
-}
-function resetRecurringForm() {
-    editingRecurringId = null;
-    if (el('recurringFormTitle')) el('recurringFormTitle').textContent = '新しい定期支出';
-    el('recurringName').value = '';
-    el('recurringAmount').value = '';
-    el('recurringCategory').value = '';
-    el('recurringStartDate').value = '';
-    if (el('recurringEndDate')) el('recurringEndDate').value = '';
-}
-function renderRecurringList() {
-    const list = el('recurringPeriodsList');
-    if (!list) return;
-    list.innerHTML = '';
-    
-    recurringExpenses.forEach(r => {
-        const catLabel = categoryMeta[r.category] ? categoryMeta[r.category].label : '不明';
-        const card = document.createElement('div');
-        card.className = 'bg-white p-4 rounded shadow border border-gray-200 flex justify-between items-center mb-2';
-        card.innerHTML = `
-            <div>
-                <h4 class="font-bold">${r.name} <span class="text-xs bg-gray-200 px-2 py-1 rounded ml-2">${catLabel}</span></h4>
-                <p class="text-sm text-gray-600">${r.amount.toLocaleString()}円/月 (開始: ${r.startDate})</p>
-            </div>
-            <div class="flex gap-2">
-                <button class="edit-recur-btn p-2 text-blue-600 hover:bg-blue-50 rounded" data-id="${r.id}"><i data-lucide="edit-2"></i></button>
-                <button class="delete-recur-btn p-2 text-red-600 hover:bg-red-50 rounded" data-id="${r.id}"><i data-lucide="trash-2"></i></button>
-            </div>
-        `;
-        list.appendChild(card);
+function buildRecurringCategorySelect() {
+    const select = el('recurringCategory');
+    if (!select) return;
+    select.innerHTML = '<option value="">カテゴリを選択</option>';
+    Object.entries(categoryMeta).forEach(([key, meta]) => {
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = meta.label;
+        select.appendChild(opt);
     });
-    
-    qsa('.edit-recur-btn').forEach(btn => btn.addEventListener('click', (e) => editRecurring(e.currentTarget.getAttribute('data-id'))));
-    qsa('.delete-recur-btn').forEach(btn => btn.addEventListener('click', (e) => deleteRecurring(e.currentTarget.getAttribute('data-id'))));
-    
-    if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
-// 9. Monthly Resolved Transactions
+// 12. Dynamic transaction resolved list (normal + recurring)
 function getMonthlyResolvedTransactions(year, month) {
-    const prefix = `${year}-${String(month).padStart(2, '0')}`;
-    const normalTxns = transactions.filter(t => t.date.startsWith(prefix));
+    const targetMonthStr = `${year}-${String(month).padStart(2, '0')}`;
     
+    // 1. Normal transactions matching this month
+    const normalTxns = transactions.filter(t => t.date.startsWith(targetMonthStr));
+    
+    // 2. Inject recurring virtual transactions matching the target month range
     const virtualTxns = [];
     recurringExpenses.forEach(r => {
-        const targetMonthStr = `${year}-${String(month).padStart(2, '0')}`;
-        const startMonthStr = r.startDate.substring(0, 7);
-        const endMonthStr = r.endDate ? r.endDate.substring(0, 7) : '9999-99';
+        const rStartMonth = r.startDate.substring(0, 7);
+        const rEndMonth = r.endDate ? r.endDate.substring(0, 7) : '9999-12';
         
-        if (targetMonthStr >= startMonthStr && targetMonthStr <= endMonthStr) {
+        if (targetMonthStr >= rStartMonth && targetMonthStr <= rEndMonth) {
             virtualTxns.push({
-                id: `rec-${r.id}-${year}-${month}`,
-                storeName: `[定期固定] ${r.name}`,
-                date: `${prefix}-01`,
+                id: `rec-${r.id}-${targetMonthStr}`,
+                storeName: `[固定費] ${r.name}`,
+                date: `${targetMonthStr}-01`,
                 total: r.amount,
                 items: [{ name: r.name, price: r.amount, category: r.category }],
-                isRecurring: true
+                isRecurring: true,
+                recurringConfigId: r.id
             });
         }
     });
+    
     return [...normalTxns, ...virtualTxns];
 }
 
-// 10. File Handling & Bulk Processing
-function handleFileSelect(e) {
-    const files = Array.from(e.target.files);
-    if (!files.length) return;
-    if (files.length === 1) processSingleFile(files[0]);
-    else processBulkFiles(files);
-    e.target.value = '';
+// Find budget covering target month
+function getActiveBudgetForMonth(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const midMonthDate = `${year}-${month}-15`;
+    const active = budgets.find(b => b.startDate <= midMonthDate && b.endDate >= midMonthDate);
+    return active ? active.categories : {};
 }
-async function processSingleFile(file) {
-    try {
-        const base64 = await readFileAsBase64(file);
-        if (el('dropzone')) el('dropzone').style.display = 'none';
-        if (el('scannerContainer')) el('scannerContainer').classList.remove('hidden');
-        if (el('scannedImage')) el('scannedImage').src = base64;
+
+// 13. Dashboard View Updates
+function updateDashboard() {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth() + 1;
+    
+    const monthlyTxns = getMonthlyResolvedTransactions(year, month);
+    const totalExpenses = monthlyTxns.reduce((sum, t) => sum + t.total, 0);
+    
+    // Update Stats Card
+    qsa('.totalExpensesVal').forEach(node => node.textContent = `¥${totalExpenses.toLocaleString()}`);
+    qsa('.receiptCountVal').forEach(node => node.textContent = `${monthlyTxns.length} 件`);
+    
+    // Budget progress elements
+    const activeBudget = getActiveBudgetForMonth(currentMonth);
+    const overallBudget = Object.values(activeBudget).reduce((sum, v) => sum + v, 0);
+    
+    updateOverallBudgetProgress(totalExpenses, overallBudget);
+    renderCategoryBudgetList(monthlyTxns, activeBudget);
+    
+    // Components updates
+    renderCalendar(monthlyTxns);
+    renderRecentHistory(monthlyTxns);
+    updateShareCharts(monthlyTxns);
+}
+
+function updateOverallBudgetProgress(totalSpent, overallBudget) {
+    let percent = 0;
+    if (overallBudget > 0) percent = Math.min((totalSpent / overallBudget) * 100, 100);
+    
+    qsa('.budgetPercentLabel').forEach(node => node.textContent = overallBudget > 0 ? `消化率: ${Math.round(percent)}%` : '消化率: - %');
+    qsa('.budgetRemainingLabel').forEach(node => {
+        if (overallBudget === 0) {
+            node.textContent = '予算未設定';
+        } else {
+            const rem = overallBudget - totalSpent;
+            if (rem >= 0) {
+                node.textContent = `残高: ¥${rem.toLocaleString()}`;
+            } else {
+                node.textContent = `超過: ¥${Math.abs(rem).toLocaleString()}`;
+            }
+        }
+    });
+    
+    qsa('.budgetProgressBar').forEach(bar => {
+        bar.style.width = `${percent}%`;
+        bar.classList.remove('warning', 'danger');
+        if (percent >= 100) {
+            bar.classList.add('danger');
+        } else if (percent >= 80) {
+            bar.classList.add('warning');
+        }
+    });
+}
+
+function renderCategoryBudgetList(monthlyTxns, activeBudget) {
+    const container = el('dashboardCategoryBudgets');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    // Calculate spends per category
+    const spends = {};
+    Object.keys(categoryMeta).forEach(k => spends[k] = 0);
+    monthlyTxns.forEach(t => {
+        t.items.forEach(item => {
+            const cat = item.category || 'others';
+            if (spends[cat] !== undefined) spends[cat] += item.price;
+            else spends['others'] += item.price;
+        });
+    });
+    
+    // Render list for categories that have budget or spend
+    Object.entries(categoryMeta).forEach(([key, meta]) => {
+        const budget = activeBudget[key] || 0;
+        const spent = spends[key] || 0;
         
-        const res = await performScan(base64.split(',')[1], file.type);
-        populateEditor(res);
-    } catch (err) {
-        showToast('読み取りエラー: ' + err.message, 'error');
-        resetScannerState();
+        if (budget > 0 || spent > 0) {
+            let percent = 0;
+            if (budget > 0) percent = Math.min((spent / budget) * 100, 100);
+            else if (spent > 0) percent = 100;
+            
+            let progressClass = '';
+            if (spent > budget && budget > 0) progressClass = 'danger';
+            else if (percent >= 80) progressClass = 'warning';
+            
+            let remText = '';
+            if (budget > 0) {
+                const rem = budget - spent;
+                if (rem >= 0) remText = `残 ¥${rem.toLocaleString()}`;
+                else remText = `超過 ¥${Math.abs(rem).toLocaleString()}`;
+            } else {
+                remText = '予算なし';
+            }
+            
+            const row = document.createElement('div');
+            row.className = 'dashboard-category-budget-row';
+            row.innerHTML = `
+                <div class="dashboard-category-budget-info">
+                    <span class="cat-label-indicator">
+                        <span class="cat-dot" style="background-color: ${meta.color}"></span>
+                        <span style="font-weight:600;">${meta.label}</span>
+                    </span>
+                    <span>${spent.toLocaleString()} / ${budget > 0 ? budget.toLocaleString() + '円' : '未設定'}</span>
+                </div>
+                <div class="progress-bar-container" style="height:6px;">
+                    <div class="progress-bar-fill ${progressClass}" style="width: ${percent}%; background-color: ${progressClass ? '' : meta.color}"></div>
+                </div>
+                <div class="cat-rem-text ${spent > budget && budget > 0 ? 'text-red-500 font-bold' : ''}">${remText}</div>
+            `;
+            container.appendChild(row);
+        }
+    });
+}
+
+// 14. Calendar Rendering
+function renderCalendar(monthlyTxns) {
+    const grid = qs('.calendarGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    
+    const firstDayIndex = new Date(year, month, 1).getDay();
+    const totalDays = new Date(year, month + 1, 0).getDate();
+    
+    // Pad initial blank days
+    for (let i = 0; i < firstDayIndex; i++) {
+        const empty = document.createElement('div');
+        empty.className = 'calendar-day empty';
+        grid.appendChild(empty);
+    }
+    
+    const todayStr = new Date().toISOString().split('T')[0];
+    
+    // Draw cells
+    for (let dayNum = 1; dayNum <= totalDays; dayNum++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+        const dayTxns = monthlyTxns.filter(t => t.date === dateStr);
+        const dayTotal = dayTxns.reduce((sum, t) => sum + t.total, 0);
+        
+        const cell = document.createElement('div');
+        cell.className = 'calendar-day';
+        if (dateStr === todayStr) cell.classList.add('today');
+        if (dateStr === activeFilterDate) cell.classList.add('active-filter');
+        
+        if (dayTotal > 0) {
+            cell.classList.add('has-spend');
+            if (dayTotal >= 10000) cell.classList.add('has-high-spend');
+        }
+        
+        // Recurring dot indicator
+        let hasRecurring = dayTxns.some(t => t.isRecurring);
+        let recurringDot = hasRecurring ? '<span class="recur-indicator-dot"></span>' : '';
+        let amountText = dayTotal > 0 ? `¥${dayTotal.toLocaleString()}` : '';
+        
+        cell.innerHTML = `
+            <span class="calendar-day-num">${dayNum}</span>
+            ${recurringDot}
+            <span class="calendar-day-amount">${amountText}</span>
+        `;
+        
+        cell.addEventListener('click', () => {
+            if (activeFilterDate === dateStr) {
+                activeFilterDate = null;
+            } else {
+                activeFilterDate = dateStr;
+                if (dayTotal > 0) {
+                    openDayDetailsModal(dateStr, dayTotal, dayTxns);
+                }
+            }
+            renderCalendar(monthlyTxns);
+            renderRecentHistory(monthlyTxns);
+        });
+        
+        grid.appendChild(cell);
     }
 }
-async function processBulkFiles(files) {
-    if (el('bulkProgressContainer')) el('bulkProgressContainer').classList.remove('hidden');
+
+// Open detailed view for a day
+function openDayDetailsModal(dateStr, sum, dayTxns) {
+    if (el('dayDetailTitle')) el('dayDetailTitle').textContent = `${dateStr} の支出内訳`;
+    if (el('dayDetailTotalSum')) el('dayDetailTotalSum').textContent = `¥${sum.toLocaleString()}`;
+    
+    const list = el('dayDetailItemsList');
+    if (list) {
+        list.innerHTML = '';
+        dayTxns.forEach(t => {
+            const card = document.createElement('div');
+            card.className = 'day-item-card';
+            
+            let recurText = t.isRecurring ? ' <span class="badge" style="background:rgba(168,85,247,0.15);color:#A855F7;padding:1px 6px;margin-left:6px;">固定</span>' : '';
+            
+            let subItemsHtml = t.items.map(item => {
+                const meta = categoryMeta[item.category] || categoryMeta.others;
+                return `
+                    <div class="day-sub-item">
+                        <span class="day-sub-item-label">
+                            <span class="cat-dot" style="background-color:${meta.color}"></span>
+                            <span>${item.name}</span>
+                        </span>
+                        <span>¥${item.price.toLocaleString()}</span>
+                    </div>
+                `;
+            }).join('');
+            
+            card.innerHTML = `
+                <div class="day-item-header">
+                    <span class="day-item-store">${t.storeName}${recurText}</span>
+                    <span class="day-item-total">¥${t.total.toLocaleString()}</span>
+                </div>
+                ${subItemsHtml}
+                <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:8px;">
+                    <button class="history-action-btn" onclick="editTransactionItem('${t.id}')">編集</button>
+                    <button class="history-action-btn delete" onclick="deleteTransactionItem('${t.id}')">削除</button>
+                </div>
+            `;
+            list.appendChild(card);
+        });
+    }
+    openModal('dayDetailModal');
+}
+
+// 15. Render Transaction History List
+function renderRecentHistory(monthlyTxns) {
+    const container = qs('.historyList');
+    const emptyState = qs('.historyEmptyState');
+    const filterBadge = qs('.filterActiveBadge');
+    if (!container) return;
+    
+    // Clear list but keep empty state element
+    const emptyHtml = emptyState ? emptyState.outerHTML : '';
+    container.innerHTML = emptyHtml;
+    
+    let filtered = monthlyTxns;
+    if (activeFilterDate) {
+        filtered = monthlyTxns.filter(t => t.date === activeFilterDate);
+        if (filterBadge) {
+            filterBadge.textContent = `${activeFilterDate.split('-')[2]}日の記録`;
+            filterBadge.classList.add('active');
+        }
+    } else {
+        if (filterBadge) filterBadge.classList.remove('active');
+    }
+    
+    // Sort newest date first
+    filtered.sort((a, b) => b.date.localeCompare(a.date));
+    
+    const itemsCount = filtered.length;
+    if (itemsCount === 0) {
+        if (el('historyList') && qs('.historyEmptyState')) {
+            qs('.historyEmptyState').style.display = 'flex';
+        }
+    } else {
+        if (qs('.historyEmptyState')) {
+            qs('.historyEmptyState').style.display = 'none';
+        }
+        
+        filtered.forEach(t => {
+            const row = document.createElement('div');
+            row.className = 'history-item';
+            row.addEventListener('click', (e) => {
+                // Prevent trigger when clicking action buttons
+                if (e.target.tagName !== 'BUTTON') {
+                    editTransactionItem(t.id);
+                }
+            });
+            
+            const detailText = t.items.map(i => i.name).join(', ');
+            const badgeMeta = categoryMeta[t.items[0]?.category || 'others'] || categoryMeta.others;
+            const recurText = t.isRecurring ? '<span class="badge" style="background:rgba(168,85,247,0.15);color:#A855F7;padding:1px 6px;margin-left:6px;">固定</span>' : '';
+            
+            row.innerHTML = `
+                <div class="history-left">
+                    <div class="history-title-row">
+                        <span class="history-title">${t.storeName}</span>
+                        ${recurText}
+                    </div>
+                    <div class="history-meta">
+                        <span class="badge ${badgeMeta.class}">${badgeMeta.label}</span>
+                        <span class="truncate">${t.date} | ${detailText}</span>
+                    </div>
+                </div>
+                <div class="history-right">
+                    <span class="history-amount">¥${t.total.toLocaleString()}</span>
+                    <div class="history-actions">
+                        <button class="history-action-btn" onclick="event.stopPropagation(); editTransactionItem('${t.id}')">編集</button>
+                        <button class="history-action-btn delete" onclick="event.stopPropagation(); deleteTransactionItem('${t.id}')">削除</button>
+                    </div>
+                </div>
+            `;
+            container.appendChild(row);
+        });
+    }
+}
+
+// 16. Transaction Actions (CRUD)
+window.editTransactionItem = function(id) {
+    if (id.startsWith('rec-')) {
+        showToast('固定費支出の編集は「予算・固定費設定」タブから行ってください。', 'info');
+        return;
+    }
+    
+    const txn = transactions.find(t => t.id === id);
+    if (!txn) return;
+    
+    editingTransactionId = id;
+    
+    // Hide inputs, show editor
+    showDashboardSubpanel('editorPanel');
+    if (el('editorTitle')) el('editorTitle').innerHTML = '<i data-lucide="edit-3" style="color:var(--primary)"></i> 記録の編集';
+    
+    if (el('receiptStore')) el('receiptStore').value = txn.storeName;
+    if (el('receiptDate')) el('receiptDate').value = txn.date;
+    if (el('receiptTotal')) el('receiptTotal').value = txn.total;
+    
+    const list = el('itemsList');
+    if (list) {
+        list.innerHTML = '';
+        txn.items.forEach(item => addEditorItemRow(item.name, item.price, item.category));
+    }
+    
+    closeModal('dayDetailModal');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+};
+
+window.deleteTransactionItem = function(id) {
+    if (id.startsWith('rec-')) {
+        showToast('固定費支出の削除は「予算・固定費設定」タブから行ってください。', 'info');
+        return;
+    }
+    
+    if (!confirm('この記録を削除してもよろしいですか？')) return;
+    
+    transactions = transactions.filter(t => t.id !== id);
+    saveData('transactions');
+    updateDashboard();
+    closeModal('dayDetailModal');
+    showToast('記録を削除しました。', 'info');
+};
+
+// 17. Manual & AI Scan Upload Forms
+function startManualInputForm() {
+    editingTransactionId = null;
+    showDashboardSubpanel('editorPanel');
+    if (el('editorTitle')) el('editorTitle').innerHTML = '<i data-lucide="keyboard" style="color:var(--primary)"></i> 手動入力';
+    
+    if (el('receiptStore')) el('receiptStore').value = '';
+    if (el('receiptDate')) el('receiptDate').value = new Date().toISOString().split('T')[0];
+    if (el('receiptTotal')) el('receiptTotal').value = '0';
+    
+    const list = el('itemsList');
+    if (list) {
+        list.innerHTML = '';
+        addEditorItemRow('', 0, 'others');
+    }
+    
+    setTimeout(() => {
+        if (el('receiptStore')) el('receiptStore').focus();
+    }, 150);
+}
+
+function cancelEditor() {
+    editingTransactionId = null;
+    showDashboardSubpanel('dropzone');
+    if (el('fileInput')) el('fileInput').value = '';
+}
+
+function addEditorItemRow(name = '', price = 0, category = 'others') {
+    const container = el('itemsList');
+    if (!container) return;
+    
+    const row = document.createElement('div');
+    row.className = 'item-row';
+    
+    let selectOptions = '';
+    Object.entries(categoryMeta).forEach(([k, v]) => {
+        selectOptions += `<option value="${k}" ${k === category ? 'selected' : ''}>${v.label}</option>`;
+    });
+    
+    row.innerHTML = `
+        <input type="text" class="item-name" placeholder="品名" value="${name}">
+        <select class="item-category">${selectOptions}</select>
+        <input type="number" class="item-price" placeholder="価格" value="${price}" min="0">
+        <button class="btn-icon" style="color:var(--text-muted);" title="削除"><i data-lucide="trash-2"></i></button>
+    `;
+    
+    // Bind auto calculations
+    row.querySelector('.item-price').addEventListener('input', calculateTotalFromItems);
+    row.querySelector('button').addEventListener('click', () => {
+        row.remove();
+        calculateTotalFromItems();
+    });
+    
+    container.appendChild(row);
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    calculateTotalFromItems();
+}
+
+function calculateTotalFromItems() {
+    let sum = 0;
+    qsa('.item-price').forEach(input => {
+        sum += parseInt(input.value) || 0;
+    });
+    if (el('receiptTotal')) el('receiptTotal').value = sum;
+}
+
+function saveCurrentTransaction() {
+    const store = el('receiptStore').value.trim();
+    const dateStr = el('receiptDate').value;
+    const totalVal = parseInt(el('receiptTotal').value) || 0;
+    
+    if (!dateStr || totalVal <= 0) {
+        showToast('正しい日付と金額を入力してください。', 'error');
+        return;
+    }
+    
+    // Retrieve rows
+    const items = [];
+    qsa('.item-row').forEach(row => {
+        const name = row.querySelector('.item-name').value.trim();
+        const category = row.querySelector('.item-category').value;
+        const price = parseInt(row.querySelector('.item-price').value) || 0;
+        
+        if (name || price > 0) {
+            items.push({
+                name: name || '品目明細',
+                category: category || 'others',
+                price: price
+            });
+        }
+    });
+    
+    if (items.length === 0) {
+        items.push({ name: 'まとめ支出', category: 'others', price: totalVal });
+    }
+    
+    if (editingTransactionId) {
+        const index = transactions.findIndex(t => t.id === editingTransactionId);
+        if (index > -1) {
+            transactions[index] = {
+                ...transactions[index],
+                storeName: store || '不明な店舗',
+                date: dateStr,
+                total: totalVal,
+                items: items
+            };
+            showToast('家計簿記録を更新しました。', 'success');
+        }
+    } else {
+        transactions.push({
+            id: 'txn-' + Date.now().toString(),
+            storeName: store || '不明な店舗',
+            date: dateStr,
+            total: totalVal,
+            items: items
+        });
+        showToast('家計簿記録を登録しました。', 'success');
+    }
+    
+    saveData('transactions');
+    showDashboardSubpanel('dropzone');
+    updateDashboard();
+}
+
+// 18. Receipts Batch / Single file upload process
+function handleFileUpload(e) {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+    
+    if (files.length === 1) {
+        processSingleReceipt(files[0]);
+    } else {
+        processMultipleReceipts(files);
+    }
+    e.target.value = '';
+}
+
+async function processSingleReceipt(file) {
+    try {
+        const base64 = await convertFileToBase64(file);
+        
+        // Show scanning animation panel
+        showDashboardSubpanel('scannerContainer');
+        if (el('scannedImage')) el('scannedImage').src = base64;
+        
+        // Process AI / Mock
+        const res = await callScanApi(base64.split(',')[1], file.type);
+        
+        // Fill editor
+        showDashboardSubpanel('editorPanel');
+        if (el('editorTitle')) el('editorTitle').innerHTML = '<i data-lucide="edit-3" style="color:var(--primary)"></i> 解析結果の確認';
+        if (el('receiptStore')) el('receiptStore').value = res.storeName || '';
+        if (el('receiptDate')) el('receiptDate').value = res.date || new Date().toISOString().split('T')[0];
+        if (el('receiptTotal')) el('receiptTotal').value = res.total || 0;
+        
+        const list = el('itemsList');
+        if (list) {
+            list.innerHTML = '';
+            if (res.items && res.items.length) {
+                res.items.forEach(item => addEditorItemRow(item.name, item.price, item.category));
+            } else {
+                addEditorItemRow('レシート品目', res.total || 0, 'others');
+            }
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('スキャンエラーが発生しました。', 'error');
+        showDashboardSubpanel('dropzone');
+    }
+}
+
+async function processMultipleReceipts(files) {
+    showDashboardSubpanel('bulkProgressContainer');
     let successCount = 0;
     
     for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        if (el('bulkProgressText')) el('bulkProgressText').textContent = `処理中: ${i+1} / ${files.length} (${file.name})`;
-        if (el('bulkProgressBar')) el('bulkProgressBar').style.width = `${((i)/files.length)*100}%`;
+        if (el('bulkProgressText')) {
+            el('bulkProgressText').textContent = `処理中: ${i + 1} / ${files.length} (${file.name})`;
+        }
+        if (el('bulkProgressBar')) {
+            el('bulkProgressBar').style.width = `${((i) / files.length) * 100}%`;
+        }
         
         try {
-            const base64 = await readFileAsBase64(file);
-            const res = await performScan(base64.split(',')[1], file.type);
+            const base64 = await convertFileToBase64(file);
+            const res = await callScanApi(base64.split(',')[1], file.type);
             
-            const newTx = {
-                id: 't-' + Date.now().toString() + '-' + i,
+            transactions.push({
+                id: 'txn-' + Date.now().toString() + '-' + i,
                 storeName: res.storeName || '不明な店舗',
                 date: res.date || new Date().toISOString().split('T')[0],
                 total: res.total || 0,
-                items: res.items || []
-            };
-            transactions.push(newTx);
+                items: res.items && res.items.length ? res.items : [{ name: 'まとめ支出', price: res.total || 0, category: 'others' }]
+            });
             successCount++;
         } catch (err) {
-            console.error('Bulk error', err);
+            console.error('Batch scanning single error: ', err);
         }
     }
     
     if (el('bulkProgressBar')) el('bulkProgressBar').style.width = '100%';
+    
     setTimeout(() => {
-        if (el('bulkProgressContainer')) el('bulkProgressContainer').classList.add('hidden');
-        saveTransactionsToStorage();
+        saveData('transactions');
+        showDashboardSubpanel('dropzone');
         updateDashboard();
-        showToast(`${successCount}件のレシートを取り込みました`, 'success');
+        showToast(`${successCount} 枚のレシートを一括登録しました。`, 'success');
     }, 1000);
 }
-function readFileAsBase64(file) {
+
+function convertFileToBase64(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result);
@@ -525,9 +901,15 @@ function readFileAsBase64(file) {
     });
 }
 
-// 11. Gemini API Integration
-async function performScan(base64Data, mimeType) {
-    if (!apiKey) return runMockScan();
+// 19. Gemini AI Integration with strict JSON output
+async function callScanApi(base64Data, mimeType) {
+    if (!apiKey) {
+        return new Promise(resolve => {
+            setTimeout(() => {
+                resolve(getMockDataResponse());
+            }, 2500);
+        });
+    }
     
     const schema = {
         type: "OBJECT",
@@ -542,11 +924,13 @@ async function performScan(base64Data, mimeType) {
                     properties: {
                         name: { type: "STRING" },
                         price: { type: "INTEGER" },
-                        category: { type: "STRING", description: "One of: food, dining, luxuries, shopping, clothing, furniture, utilities, mortgage, insurance, medical, education, transport, social, entertainment, special, others" }
-                    }
+                        category: { type: "STRING", description: "Must be: food, dining, luxuries, shopping, clothing, furniture, utilities, mortgage, insurance, medical, education, transport, social, entertainment, special, or others" }
+                    },
+                    required: ["name", "price", "category"]
                 }
             }
-        }
+        },
+        required: ["storeName", "date", "total", "items"]
     };
     
     try {
@@ -557,7 +941,7 @@ async function performScan(base64Data, mimeType) {
                 contents: [{
                     parts: [
                         { inlineData: { mimeType: mimeType || 'image/jpeg', data: base64Data } },
-                        { text: "Extract receipt information into the JSON schema." }
+                        { text: "Extract receipt details. Strictly map each line item into appropriate categories." }
                     ]
                 }],
                 generationConfig: {
@@ -567,634 +951,322 @@ async function performScan(base64Data, mimeType) {
             })
         });
         
-        const data = await response.json();
-        if (data.error) throw new Error(data.error.message);
+        const responseData = await response.json();
+        if (responseData.error) {
+            throw new Error(responseData.error.message);
+        }
         
-        const textRes = data.candidates[0].content.parts[0].text;
-        return JSON.parse(textRes);
-    } catch (e) {
-        console.error('API Error:', e);
-        showToast('API呼び出し失敗、モックを使用します', 'error');
-        return runMockScan();
+        const responseText = responseData.candidates[0].content.parts[0].text;
+        return JSON.parse(responseText);
+    } catch (err) {
+        console.error('API integration failure, fallback to Mock: ', err);
+        showToast('AI解析に失敗しました。デモ用のダミー値を使用します。', 'error');
+        return getMockDataResponse();
     }
 }
-function runMockScan() {
-    return new Promise(resolve => {
-        setTimeout(() => { resolve(getMockReceiptResult()); }, 2500);
-    });
-}
-function getMockReceiptResult() {
+
+function getMockDataResponse() {
     const mock = JSON.parse(JSON.stringify(mockReceipts[Math.floor(Math.random() * mockReceipts.length)]));
-    const d = new Date();
-    d.setDate(d.getDate() - Math.floor(Math.random() * 6));
-    mock.date = d.toISOString().split('T')[0];
+    const randomDaysAgo = Math.floor(Math.random() * 8);
+    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15);
+    date.setDate(date.getDate() - randomDaysAgo);
+    mock.date = date.toISOString().split('T')[0];
     return mock;
 }
 
-// 12. WebRTC Camera
+// 20. WebRTC camera controls
 async function startContinuousCamera() {
     try {
-        cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-        if (el('cameraVideo')) {
-            el('cameraVideo').srcObject = cameraStream;
-            el('cameraVideo').play();
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+        });
+        
+        const video = el('cameraVideo');
+        if (video) {
+            video.srcObject = cameraStream;
+            video.play();
         }
-        if (el('cameraViewOverlay')) el('cameraViewOverlay').classList.remove('hidden');
+        
         capturedImages = [];
-        updateCameraThumbs();
+        updateCapturedThumbsUI();
+        openModal('cameraViewOverlay');
     } catch (e) {
-        showToast('カメラの起動に失敗しました', 'error');
+        console.error(e);
+        showToast('カメラの起動に失敗しました。権限を許可してください。', 'error');
     }
 }
+
 function stopContinuousCamera() {
     if (cameraStream) {
-        cameraStream.getTracks().forEach(t => t.stop());
+        cameraStream.getTracks().forEach(track => track.stop());
         cameraStream = null;
     }
-    if (el('cameraViewOverlay')) el('cameraViewOverlay').classList.add('hidden');
-}
-function captureSnapshot() {
     const video = el('cameraVideo');
-    if (!video) return;
+    if (video) video.srcObject = null;
+    
+    closeModal('cameraViewOverlay');
+}
+
+function captureCameraSnapshot() {
+    const video = el('cameraVideo');
+    if (!video || !cameraStream) return;
+    
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     canvas.getContext('2d').drawImage(video, 0, 0);
+    
     const dataUrl = canvas.toDataURL('image/jpeg');
     capturedImages.push(dataUrl);
     
+    // Trigger flash animation
     const flash = el('cameraFlash');
     if (flash) {
-        flash.classList.remove('hidden');
-        flash.style.opacity = '1';
+        flash.classList.add('active');
         setTimeout(() => {
-            flash.style.opacity = '0';
-            setTimeout(() => flash.classList.add('hidden'), 200);
-        }, 50);
+            flash.classList.remove('active');
+        }, 350);
     }
-    updateCameraThumbs();
+    
+    updateCapturedThumbsUI();
+    showToast('撮影しました。', 'success');
 }
-function updateCameraThumbs() {
+
+function updateCapturedThumbsUI() {
     const container = el('capturedThumbsContainer');
     if (!container) return;
     container.innerHTML = '';
-    capturedImages.forEach((img, idx) => {
-        const div = document.createElement('div');
-        div.className = 'relative w-16 h-16 shrink-0';
-        div.innerHTML = `
-            <img src="${img}" class="w-full h-full object-cover rounded border border-white">
-            <button class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs" onclick="removeCaptured(${idx})">×</button>
+    
+    capturedImages.forEach((img, index) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'captured-thumb-wrapper';
+        wrapper.innerHTML = `
+            <img src="${img}" alt="Thumb">
+            <button class="delete-thumb-btn" onclick="removeCapturedThumb(${index})">&times;</button>
         `;
-        container.appendChild(div);
+        container.appendChild(wrapper);
     });
     
-    const procBtn = el('processCapturedBtn');
-    if (procBtn) {
-        procBtn.disabled = capturedImages.length === 0;
-        procBtn.textContent = `処理する (${capturedImages.length}枚)`;
+    const processBtn = el('processCapturedBtn');
+    if (processBtn) {
+        processBtn.disabled = capturedImages.length === 0;
+        processBtn.innerHTML = `<i data-lucide="check"></i> 完了 (${capturedImages.length}枚)`;
+        if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 }
-window.removeCaptured = function(idx) {
-    capturedImages.splice(idx, 1);
-    updateCameraThumbs();
-}
-async function submitCapturedImages() {
+
+window.removeCapturedThumb = function(index) {
+    capturedImages.splice(index, 1);
+    updateCapturedThumbsUI();
+};
+
+async function processCapturedBatches() {
     const images = [...capturedImages];
     stopContinuousCamera();
     
+    if (images.length === 0) return;
+    
     if (images.length === 1) {
-        if (el('dropzone')) el('dropzone').style.display = 'none';
-        if (el('scannerContainer')) el('scannerContainer').classList.remove('hidden');
+        // Show scan overlay single
+        showDashboardSubpanel('scannerContainer');
         if (el('scannedImage')) el('scannedImage').src = images[0];
         
         try {
-            const res = await performScan(images[0].split(',')[1], 'image/jpeg');
-            populateEditor(res);
-        } catch(e) {
-            resetScannerState();
+            const res = await callScanApi(images[0].split(',')[1], 'image/jpeg');
+            showDashboardSubpanel('editorPanel');
+            if (el('editorTitle')) el('editorTitle').innerHTML = '<i data-lucide="edit-3" style="color:var(--primary)"></i> 撮影結果の確認';
+            if (el('receiptStore')) el('receiptStore').value = res.storeName || '';
+            if (el('receiptDate')) el('receiptDate').value = res.date || new Date().toISOString().split('T')[0];
+            if (el('receiptTotal')) el('receiptTotal').value = res.total || 0;
+            
+            const list = el('itemsList');
+            if (list) {
+                list.innerHTML = '';
+                res.items.forEach(item => addEditorItemRow(item.name, item.price, item.category));
+            }
+        } catch (e) {
+            showDashboardSubpanel('dropzone');
         }
-    } else if (images.length > 1) {
-        if (el('bulkProgressContainer')) el('bulkProgressContainer').classList.remove('hidden');
-        let successCount = 0;
+    } else {
+        // Bulk progress overlay
+        showDashboardSubpanel('bulkProgressContainer');
+        let success = 0;
         
         for (let i = 0; i < images.length; i++) {
-            if (el('bulkProgressText')) el('bulkProgressText').textContent = `処理中: ${i+1} / ${images.length}`;
-            if (el('bulkProgressBar')) el('bulkProgressBar').style.width = `${((i)/images.length)*100}%`;
+            if (el('bulkProgressText')) el('bulkProgressText').textContent = `処理中: ${i + 1} / ${images.length}`;
+            if (el('bulkProgressBar')) el('bulkProgressBar').style.width = `${((i) / images.length) * 100}%`;
             
             try {
-                const res = await performScan(images[i].split(',')[1], 'image/jpeg');
-                const newTx = {
-                    id: 't-' + Date.now().toString() + '-' + i,
+                const res = await callScanApi(images[i].split(',')[1], 'image/jpeg');
+                transactions.push({
+                    id: 'txn-' + Date.now().toString() + '-' + i,
                     storeName: res.storeName || '不明な店舗',
                     date: res.date || new Date().toISOString().split('T')[0],
                     total: res.total || 0,
-                    items: res.items || []
-                };
-                transactions.push(newTx);
-                successCount++;
+                    items: res.items && res.items.length ? res.items : [{ name: 'まとめ支出', price: res.total || 0, category: 'others' }]
+                });
+                success++;
             } catch (err) {}
         }
         
         if (el('bulkProgressBar')) el('bulkProgressBar').style.width = '100%';
         setTimeout(() => {
-            if (el('bulkProgressContainer')) el('bulkProgressContainer').classList.add('hidden');
-            saveTransactionsToStorage();
+            saveData('transactions');
+            showDashboardSubpanel('dropzone');
             updateDashboard();
-            showToast(`${successCount}件のレシートを取り込みました`, 'success');
+            showToast(`${success} 件の撮影レシートを取り込みました。`, 'success');
         }, 1000);
     }
 }
 
-// 13. Manual Input Mode
-function startManualInput() {
-    if (el('dropzone')) el('dropzone').style.display = 'none';
-    if (el('scannerContainer')) el('scannerContainer').classList.add('hidden');
-    
-    populateEditor({
-        storeName: '',
-        date: new Date().toISOString().split('T')[0],
-        total: 0,
-        items: []
-    });
-    
-    if (el('editorTitle')) el('editorTitle').textContent = '手動入力';
-    setTimeout(() => {
-        if (el('receiptStore')) {
-            el('receiptStore').focus();
-            el('receiptStore').scrollIntoView({behavior: 'smooth', block: 'center'});
-        }
-    }, 100);
-}
-
-// 14. Receipt Editor
-function populateEditor(data) {
-    if (el('editorPanel')) el('editorPanel').classList.remove('hidden');
-    if (el('editorTitle')) el('editorTitle').textContent = 'レシート確認・編集';
-    
-    if (el('receiptStore')) el('receiptStore').value = data.storeName || '';
-    if (el('receiptDate')) el('receiptDate').value = data.date || new Date().toISOString().split('T')[0];
-    if (el('receiptTotal')) el('receiptTotal').value = data.total || 0;
-    
-    const list = el('itemsList');
-    if (list) {
-        list.innerHTML = '';
-        if (data.items && data.items.length) {
-            data.items.forEach(item => addReceiptItem(item.name, item.price, item.category));
-        } else {
-            addReceiptItem('', 0, 'others');
-        }
-    }
-}
-function addReceiptItem(name = '', price = 0, category = 'others') {
-    const list = el('itemsList');
-    if (!list) return;
-    
-    const row = document.createElement('div');
-    row.className = 'flex gap-2 items-center mb-2 item-row';
-    
-    let options = '';
-    Object.entries(categoryMeta).forEach(([k, v]) => {
-        options += `<option value="${k}" ${k === category ? 'selected' : ''}>${v.label}</option>`;
-    });
-    
-    row.innerHTML = `
-        <input type="text" class="item-name flex-1 p-2 border rounded" placeholder="品名" value="${name}">
-        <input type="number" class="item-price w-24 p-2 border rounded" placeholder="金額" value="${price}" onchange="calculateTotalFromItems()">
-        <select class="item-category w-32 p-2 border rounded">${options}</select>
-        <button class="text-red-500 p-2 hover:bg-red-50 rounded" onclick="this.parentElement.remove(); calculateTotalFromItems();"><i data-lucide="trash-2"></i></button>
-    `;
-    list.appendChild(row);
-    if (typeof lucide !== 'undefined') lucide.createIcons();
-    calculateTotalFromItems();
-}
-window.calculateTotalFromItems = function() {
-    let sum = 0;
-    qsa('.item-price').forEach(input => { sum += parseInt(input.value) || 0; });
-    if (el('receiptTotal')) el('receiptTotal').value = sum;
-}
-function resetScannerState() {
-    if (el('dropzone')) el('dropzone').style.display = 'block';
-    if (el('scannerContainer')) el('scannerContainer').classList.add('hidden');
-    if (el('editorPanel')) el('editorPanel').classList.add('hidden');
-    if (el('scannedImage')) el('scannedImage').src = '';
-    editingTransactionId = null;
-    if (el('fileInput')) el('fileInput').value = '';
-}
-
-// 15. Transaction CRUD
-function loadTransactions() {
-    const stored = localStorage.getItem('receipt_transactions');
-    if (stored) {
-        transactions = JSON.parse(stored);
-        transactions = transactions.map(t => {
-            if (t.category && (!t.items || t.items.length === 0)) {
-                t.items = [{ name: 'まとめ入力', price: t.total, category: t.category }];
-                delete t.category;
+// 21. Chart Rendering Logic
+function initCharts() {
+    categoryDoughnutCharts = [];
+    qsa('.categoryChartCanvas').forEach(canvas => {
+        const ctx = canvas.getContext('2d');
+        const chart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['データなし'],
+                datasets: [{
+                    data: [1],
+                    backgroundColor: ['rgba(255, 255, 255, 0.05)'],
+                    borderWidth: 1,
+                    borderColor: 'rgba(255, 255, 255, 0.08)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '70%',
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: { boxWidth: 10, color: '#9CA3AF', font: { size: 9, family: 'Plus Jakarta Sans' } }
+                    }
+                }
             }
-            if (t.items) {
-                t.items = t.items.map(item => ({ ...item, category: item.category || 'others' }));
-            }
-            return t;
         });
-    } else {
-        transactions = [];
-    }
-}
-function saveTransactionsToStorage() {
-    localStorage.setItem('receipt_transactions', JSON.stringify(transactions));
-}
-function saveCurrentTransaction() {
-    const storeName = el('receiptStore').value.trim();
-    const date = el('receiptDate').value;
-    const total = parseInt(el('receiptTotal').value) || 0;
-    
-    if (!date || total <= 0) {
-        showToast('日付と有効な金額を入力してください', 'error');
-        return;
-    }
-    
-    const items = [];
-    qsa('.item-row').forEach(row => {
-        const name = row.querySelector('.item-name').value;
-        const price = parseInt(row.querySelector('.item-price').value) || 0;
-        const category = row.querySelector('.item-category').value;
-        if (name || price > 0) items.push({ name: name || '名称未設定', price, category });
+        categoryDoughnutCharts.push(chart);
     });
-    
-    if (items.length === 0) items.push({ name: 'まとめ入力', price: total, category: 'others' });
-    
-    if (editingTransactionId) {
-        const idx = transactions.findIndex(t => t.id === editingTransactionId);
-        if (idx > -1) {
-            transactions[idx] = { ...transactions[idx], storeName, date, total, items };
-            showToast('更新しました', 'success');
-        }
-    } else {
-        transactions.push({
-            id: 't-' + Date.now().toString(),
-            storeName: storeName || '不明な店舗',
-            date, total, items
-        });
-        showToast('保存しました', 'success');
-    }
-    
-    saveTransactionsToStorage();
-    resetScannerState();
-    updateDashboard();
-}
-function editTransaction(id) {
-    if (id.startsWith('rec-')) {
-        showToast('定期支出は「予算・定期」タブから編集してください', 'info');
-        return;
-    }
-    const t = transactions.find(x => x.id === id);
-    if (!t) return;
-    editingTransactionId = id;
-    
-    if (el('dropzone')) el('dropzone').style.display = 'none';
-    populateEditor(t);
-    closeDayModal();
-    
-    setTimeout(() => {
-        if (el('editorPanel')) el('editorPanel').scrollIntoView({behavior: 'smooth', block: 'start'});
-    }, 100);
-}
-function deleteTransaction(id) {
-    if (id.startsWith('rec-')) {
-        showToast('定期支出は「予算・定期」タブから削除してください', 'info');
-        return;
-    }
-    if(!confirm('削除しますか？')) return;
-    transactions = transactions.filter(t => t.id !== id);
-    saveTransactionsToStorage();
-    updateDashboard();
-    closeDayModal();
-    showToast('削除しました', 'info');
 }
 
-// 16. Dashboard Update
-function updateDashboard() {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth() + 1;
-    
-    const monthlyTxns = getMonthlyResolvedTransactions(year, month);
-    const totalSpent = monthlyTxns.reduce((sum, t) => sum + t.total, 0);
-    
-    qsa('.totalExpensesVal').forEach(el => el.textContent = totalSpent.toLocaleString() + '円');
-    qsa('.receiptCountVal').forEach(el => el.textContent = monthlyTxns.length + '件');
-    
-    const activeBudget = getActiveBudgetForMonth(currentMonth);
-    const overallBudget = Object.values(activeBudget).reduce((sum, val) => sum + val, 0);
-    
-    updateOverallBudgetBars(totalSpent, overallBudget);
-    renderDashboardCategoryBudgets(monthlyTxns, activeBudget);
-    
-    renderCalendarGrid(monthlyTxns);
-    renderHistoryList(monthlyTxns);
-    updateCategoryCharts(monthlyTxns);
-}
-
-// 17. Budget Progress Bars
-function updateOverallBudgetBars(monthlyTotalSum, overallBudget) {
-    let percent = 0;
-    if (overallBudget > 0) percent = Math.min((monthlyTotalSum / overallBudget) * 100, 100);
-    
-    qsa('.budgetPercentLabel').forEach(el => el.textContent = overallBudget > 0 ? `${Math.round(percent)}%` : '- %');
-    qsa('.budgetRemainingLabel').forEach(el => {
-        if (overallBudget === 0) el.textContent = '予算未設定';
-        else {
-            const rem = overallBudget - monthlyTotalSum;
-            if (rem >= 0) el.textContent = `残り: ${rem.toLocaleString()}円`;
-            else el.textContent = `超過: ${Math.abs(rem).toLocaleString()}円`;
-        }
-    });
-    
-    qsa('.budgetProgressBar').forEach(bar => {
-        bar.style.width = `${percent}%`;
-        if (percent < 80) bar.className = 'budgetProgressBar h-full bg-blue-500 rounded-full';
-        else if (percent <= 100) bar.className = 'budgetProgressBar h-full bg-yellow-500 rounded-full';
-        else bar.className = 'budgetProgressBar h-full bg-red-500 rounded-full';
-    });
-}
-function renderDashboardCategoryBudgets(monthlyTxns, activeBudget) {
-    const container = el('dashboardCategoryBudgets');
-    if (!container) return;
-    container.innerHTML = '';
-    
+function updateShareCharts(monthlyTxns) {
     const spends = {};
     Object.keys(categoryMeta).forEach(k => spends[k] = 0);
     
-    monthlyTxns.forEach(t => {
-        t.items.forEach(item => {
-            if (spends[item.category] !== undefined) spends[item.category] += item.price;
-            else spends['others'] += item.price;
-        });
-    });
+    let total = 0;
+    monthlyTxns.forEach(t => t.items.forEach(item => {
+        const cat = item.category || 'others';
+        spends[cat] += item.price;
+        total += item.price;
+    }));
     
-    Object.entries(categoryMeta).forEach(([key, meta]) => {
-        const budget = activeBudget[key] || 0;
-        const spent = spends[key] || 0;
-        
-        if (budget > 0 || spent > 0) {
-            let percent = 0;
-            if (budget > 0) percent = Math.min((spent / budget) * 100, 100);
-            else if (spent > 0) percent = 100;
-            
-            let barColor = 'bg-blue-500';
-            if (spent > budget && budget > 0) barColor = 'bg-gradient-to-r from-red-500 to-red-600';
-            else if (percent >= 80) barColor = 'bg-amber-500';
-            else barColor = `bg-[${meta.color}]`;
-            
-            let remText = '';
-            if (budget > 0) {
-                const rem = budget - spent;
-                if (rem >= 0) remText = `残り ${rem.toLocaleString()}円`;
-                else remText = `<span class="text-red-500 font-bold">超過 ${Math.abs(rem).toLocaleString()}円</span>`;
-            } else {
-                remText = '予算なし';
-            }
-            
-            const div = document.createElement('div');
-            div.className = 'mb-3';
-            div.innerHTML = `
-                <div class="flex justify-between items-center text-sm mb-1">
-                    <div class="flex items-center gap-1">
-                        <span class="w-3 h-3 rounded-full" style="background-color: ${meta.color}"></span>
-                        <span class="font-medium">${meta.label}</span>
-                    </div>
-                    <span>${spent.toLocaleString()} / ${budget.toLocaleString()}円</span>
-                </div>
-                <div class="w-full bg-gray-200 rounded-full h-2">
-                    <div class="${barColor} h-2 rounded-full transition-all" style="width: ${percent}%; background-color: ${barColor.includes('bg-[') ? meta.color : ''}"></div>
-                </div>
-                <div class="text-xs text-right mt-1 text-gray-500">${remText}</div>
-            `;
-            container.appendChild(div);
-        }
-    });
-}
-
-// 18. Calendar Grid
-function renderCalendarGrid(monthlyTxns) {
-    const grid = qs('.calendarGrid');
-    if (!grid) return;
-    grid.innerHTML = '';
+    const labels = [];
+    const data = [];
+    const colors = [];
     
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
-    
-    const days = ['日','月','火','水','木','金','土'];
-    days.forEach(d => {
-        const hEl = document.createElement('div');
-        hEl.className = 'text-center text-xs font-bold text-gray-500 py-1';
-        hEl.textContent = d;
-        grid.appendChild(hEl);
-    });
-    
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const startOffset = firstDay.getDay();
-    
-    for(let i=0; i<startOffset; i++) {
-        const empty = document.createElement('div');
-        empty.className = 'p-1';
-        grid.appendChild(empty);
-    }
-    
-    const todayStr = new Date().toISOString().split('T')[0];
-    
-    for(let d=1; d<=lastDay.getDate(); d++) {
-        const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-        const dayTxns = monthlyTxns.filter(t => t.date === dateStr);
-        const spent = dayTxns.reduce((s, t) => s + t.total, 0);
-        
-        const cell = document.createElement('div');
-        cell.className = 'min-h-[60px] border border-gray-100 p-1 relative cursor-pointer hover:bg-gray-50 transition-colors rounded';
-        
-        if (dateStr === todayStr) cell.classList.add('bg-blue-50', 'border-blue-200', 'today');
-        if (activeFilterDate === dateStr) cell.classList.add('ring-2', 'ring-blue-500', 'active-filter');
-        if (spent > 0) cell.classList.add('has-spend');
-        if (spent >= 10000) cell.classList.add('bg-red-50', 'has-high-spend');
-        
-        let spendHtml = spent > 0 ? `<div class="text-[10px] text-red-600 font-bold text-center mt-1">${spent.toLocaleString()}</div>` : '';
-        let indicatorHtml = dayTxns.some(t => t.isRecurring) ? `<div class="absolute top-1 right-1 w-2 h-2 rounded-full bg-purple-500" title="定期支出あり"></div>` : '';
-        
-        cell.innerHTML = `<div class="text-xs ${dateStr === todayStr ? 'text-blue-600 font-bold' : 'text-gray-700'}">${d}</div>${indicatorHtml}${spendHtml}`;
-        
-        cell.addEventListener('click', () => {
-            if (activeFilterDate === dateStr) {
-                activeFilterDate = null;
-                renderHistoryList(monthlyTxns);
-                renderCalendarGrid(monthlyTxns);
-            } else {
-                activeFilterDate = dateStr;
-                renderHistoryList(monthlyTxns);
-                renderCalendarGrid(monthlyTxns);
-                if (spent > 0) openDayModal(dateStr, spent, dayTxns);
+    if (total === 0) {
+        labels.push('データなし');
+        data.push(1);
+        colors.push('rgba(255, 255, 255, 0.08)');
+    } else {
+        Object.entries(categoryMeta).forEach(([key, meta]) => {
+            if (spends[key] > 0) {
+                labels.push(meta.label);
+                data.push(spends[key]);
+                colors.push(meta.color);
             }
         });
-        
-        grid.appendChild(cell);
-    }
-}
-function renderHistoryList(monthlyTxns) {
-    const list = qs('.historyList');
-    const emptyState = qs('.historyEmptyState');
-    const badge = qs('.filterActiveBadge');
-    if (!list) return;
-    
-    list.innerHTML = '';
-    
-    let filtered = monthlyTxns;
-    if (activeFilterDate) {
-        filtered = monthlyTxns.filter(t => t.date === activeFilterDate);
-        if (badge) {
-            badge.classList.remove('hidden');
-            badge.textContent = `${activeFilterDate.split('-')[2]}日の記録`;
-        }
-    } else {
-        if (badge) badge.classList.add('hidden');
     }
     
-    filtered.sort((a,b) => b.date.localeCompare(a.date));
-    
-    if (filtered.length === 0) {
-        if (emptyState) emptyState.classList.remove('hidden');
-    } else {
-        if (emptyState) emptyState.classList.add('hidden');
-        filtered.forEach(t => {
-            const card = document.createElement('div');
-            card.className = 'bg-white p-3 rounded shadow-sm border border-gray-100 flex justify-between items-center';
-            
-            const itemsStr = t.items.map(i => i.name).join(', ');
-            const recurBadge = t.isRecurring ? `<span class="bg-purple-100 text-purple-800 text-[10px] px-1 rounded ml-2">定期</span>` : '';
-            
-            card.innerHTML = `
-                <div class="flex-1 min-w-0">
-                    <div class="flex items-center"><div class="font-bold text-gray-800 truncate">${t.storeName}</div>${recurBadge}</div>
-                    <div class="text-xs text-gray-500 truncate">${t.date} | ${itemsStr}</div>
-                </div>
-                <div class="text-right ml-4">
-                    <div class="font-bold text-lg whitespace-nowrap">¥${t.total.toLocaleString()}</div>
-                    <button class="text-blue-500 text-xs hover:underline mt-1" onclick="editTransaction('${t.id}')">編集</button>
-                </div>
-            `;
-            list.appendChild(card);
-        });
-    }
+    categoryDoughnutCharts.forEach(chart => {
+        chart.data.labels = labels;
+        chart.data.datasets[0].data = data;
+        chart.data.datasets[0].backgroundColor = colors;
+        chart.update();
+    });
 }
 
-// 19. Day Detail Modal
-function openDayModal(dateStr, spent, dayTxns) {
-    const modal = el('dayDetailModal');
-    if (!modal) return;
-    
-    if (el('dayDetailTitle')) el('dayDetailTitle').textContent = `${dateStr} の支出`;
-    if (el('dayDetailTotalSum')) el('dayDetailTotalSum').textContent = `合計: ${spent.toLocaleString()}円`;
-    
-    const list = el('dayDetailItemsList');
-    if (list) {
-        list.innerHTML = '';
-        dayTxns.forEach(t => {
-            const block = document.createElement('div');
-            block.className = 'mb-4 border-b pb-4 last:border-b-0';
-            
-            let recurBadge = t.isRecurring ? `<span class="bg-purple-100 text-purple-800 text-[10px] px-1 rounded ml-2">定期</span>` : '';
-            
-            let itemsHtml = t.items.map(item => {
-                const catMeta = categoryMeta[item.category] || categoryMeta.others;
-                return `
-                <div class="flex justify-between items-center text-sm mt-1 pl-2">
-                    <div class="flex items-center gap-2">
-                        <span class="w-2 h-2 rounded-full" style="background-color: ${catMeta.color}"></span>
-                        <span class="text-gray-600">${item.name}</span>
-                    </div>
-                    <span>${item.price.toLocaleString()}円</span>
-                </div>`;
-            }).join('');
-            
-            block.innerHTML = `
-                <div class="flex justify-between items-center mb-2">
-                    <div class="font-bold flex items-center">${t.storeName} ${recurBadge}</div>
-                    <div class="flex gap-2 items-center">
-                        <span class="font-bold">${t.total.toLocaleString()}円</span>
-                        <button class="p-1 text-blue-600 hover:bg-blue-50 rounded" onclick="editTransaction('${t.id}')"><i data-lucide="edit-2" class="w-4 h-4"></i></button>
-                        <button class="p-1 text-red-600 hover:bg-red-50 rounded" onclick="deleteTransaction('${t.id}')"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                    </div>
-                </div>
-                ${itemsHtml}
-            `;
-            list.appendChild(block);
-        });
-    }
-    
-    modal.classList.remove('hidden');
-    if (typeof lucide !== 'undefined') lucide.createIcons();
-}
-function closeDayModal() {
-    if (el('dayDetailModal')) el('dayDetailModal').classList.add('hidden');
-}
-
-// 20. Analytics View
+// 22. Detailed Analytics View
 function updateAnalyticsView() {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth() + 1;
     
-    if (el('analyticsMonthNav')) {
-        if (analyticsPeriod === 'month') el('analyticsMonthNav').classList.remove('hidden');
-        else el('analyticsMonthNav').classList.add('hidden');
+    const navPanel = el('analyticsMonthNav');
+    if (navPanel) {
+        if (analyticsPeriod === 'month') navPanel.style.display = 'flex';
+        else navPanel.style.display = 'none';
     }
     
     let labels = [];
     let titleStr = '';
-    let txns = [];
+    let datasetTxns = [];
     
     if (analyticsPeriod === 'month') {
-        titleStr = `${year}年${month}月 の分析`;
-        const daysInMonth = new Date(year, month, 0).getDate();
-        for(let i=1; i<=daysInMonth; i++) labels.push(`${i}日`);
-        txns = getMonthlyResolvedTransactions(year, month);
+        titleStr = `${year}年${String(month).padStart(2, '0')}月 の詳細内訳`;
+        const daysCount = new Date(year, month, 0).getDate();
+        for (let i = 1; i <= daysCount; i++) {
+            labels.push(`${i}日`);
+        }
+        datasetTxns = getMonthlyResolvedTransactions(year, month);
     } else if (analyticsPeriod === 'quarter') {
-        const q = Math.ceil(month/3);
-        titleStr = `${year}年 Q${q} の分析`;
-        labels = [`Q1 (1-3月)`,`Q2 (4-6月)`,`Q3 (7-9月)`,`Q4 (10-12月)`];
-        for(let m=1; m<=12; m++) txns = txns.concat(getMonthlyResolvedTransactions(year, m));
+        const quarterIndex = Math.ceil(month / 3);
+        titleStr = `${year}年 Q${quarterIndex} (第${quarterIndex}四半期) の推移`;
+        labels = [`Q1 (1-3月)`, `Q2 (4-6月)`, `Q3 (7-9月)`, `Q4 (10-12月)`];
+        
+        // Fetch all year data
+        for (let m = 1; m <= 12; m++) {
+            datasetTxns = datasetTxns.concat(getMonthlyResolvedTransactions(year, m));
+        }
     } else if (analyticsPeriod === 'year') {
-        titleStr = `${year}年 の分析`;
-        for(let i=1; i<=12; i++) labels.push(`${i}月`);
-        for(let m=1; m<=12; m++) txns = txns.concat(getMonthlyResolvedTransactions(year, m));
+        titleStr = `${year}年 年間支出の推移`;
+        for (let m = 1; m <= 12; m++) {
+            labels.push(`${m}月`);
+            datasetTxns = datasetTxns.concat(getMonthlyResolvedTransactions(year, m));
+        }
     }
     
     if (el('trendChartTitle')) el('trendChartTitle').textContent = titleStr;
     
+    // Prepare datasets for stacked bar chart (16 categories)
     const datasets = [];
     const catKeys = Object.keys(categoryMeta);
     catKeys.forEach(k => {
         datasets.push({
             label: categoryMeta[k].label,
             backgroundColor: categoryMeta[k].color,
+            borderColor: categoryMeta[k].color,
+            borderWidth: 0,
             data: new Array(labels.length).fill(0),
-            stack: 'Stack 0'
+            stack: 'stack-group'
         });
     });
     
-    txns.forEach(t => {
+    datasetTxns.forEach(t => {
         let labelIndex = -1;
-        const tDate = new Date(t.date);
-        const tMonth = tDate.getMonth() + 1;
+        const d = new Date(t.date);
+        const tMonth = d.getMonth() + 1;
         
-        if (analyticsPeriod === 'month') labelIndex = parseInt(t.date.split('-')[2]) - 1;
-        else if (analyticsPeriod === 'quarter') labelIndex = Math.ceil(tMonth/3) - 1;
-        else if (analyticsPeriod === 'year') labelIndex = tMonth - 1;
+        if (analyticsPeriod === 'month') {
+            labelIndex = parseInt(t.date.split('-')[2]) - 1;
+        } else if (analyticsPeriod === 'quarter') {
+            labelIndex = Math.ceil(tMonth / 3) - 1;
+        } else if (analyticsPeriod === 'year') {
+            labelIndex = tMonth - 1;
+        }
         
         if (labelIndex >= 0 && labelIndex < labels.length) {
             t.items.forEach(item => {
-                const catIdx = catKeys.indexOf(item.category || 'others');
-                if (catIdx > -1) datasets[catIdx].data[labelIndex] += item.price;
+                const catIndex = catKeys.indexOf(item.category || 'others');
+                if (catIndex > -1) {
+                    datasets[catIndex].data[labelIndex] += item.price;
+                }
             });
         }
     });
     
+    // Render Stacked Bar Chart
     const canvas = el('trendChart');
     if (canvas) {
         if (trendChartInstance) trendChartInstance.destroy();
@@ -1203,275 +1275,579 @@ function updateAnalyticsView() {
             type: 'bar',
             data: { labels: labels, datasets: datasets },
             options: {
-                responsive: true, maintainAspectRatio: false,
-                scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { stacked: true, grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#9CA3AF', font: { size: 9 } } },
+                    y: { stacked: true, grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#9CA3AF', font: { size: 9 } }, beginAtZero: true }
+                },
                 plugins: {
-                    legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } },
-                    tooltip: { callbacks: { label: function(ctx) { return ctx.raw === 0 ? null : `${ctx.dataset.label}: ${ctx.raw.toLocaleString()}円`; } } }
+                    legend: { display: false }, // Legend too large for mobile stack
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.raw === 0 ? null : `${context.dataset.label}: ¥${context.raw.toLocaleString()}`;
+                            }
+                        }
+                    }
                 }
             }
         });
     }
     
+    // Update category analysis table
     const tableBody = el('categoryAnalysisTableBody');
     if (tableBody) {
         tableBody.innerHTML = '';
-        const categorySpends = {};
-        catKeys.forEach(k => categorySpends[k] = 0);
-        txns.forEach(t => t.items.forEach(i => categorySpends[i.category || 'others'] += i.price));
+        const catTotals = {};
+        catKeys.forEach(k => catTotals[k] = 0);
+        datasetTxns.forEach(t => t.items.forEach(i => catTotals[i.category || 'others'] += i.price));
         
-        let activeBudget = analyticsPeriod === 'month' ? getActiveBudgetForMonth(currentMonth) : {};
-        const sortedCats = catKeys.map(k => ({key: k, spent: categorySpends[k]})).sort((a,b) => b.spent - a.spent);
+        let activeBudget = getActiveBudgetForMonth(currentMonth);
+        const sortedCats = catKeys.map(k => ({ key: k, spent: catTotals[k] })).sort((a, b) => b.spent - a.spent);
         
         sortedCats.forEach(sc => {
             if (sc.spent > 0 || (activeBudget[sc.key] && activeBudget[sc.key] > 0)) {
                 const meta = categoryMeta[sc.key];
-                const budget = activeBudget[sc.key] || 0;
-                let pct = budget > 0 ? ((sc.spent/budget)*100).toFixed(1) + '%' : '-';
+                const budgetVal = activeBudget[sc.key] || 0;
+                let percentText = '-';
+                let isOver = false;
+                
+                if (budgetVal > 0) {
+                    percentText = `${Math.round((sc.spent / budgetVal) * 100)}%`;
+                    isOver = sc.spent > budgetVal;
+                }
                 
                 const tr = document.createElement('tr');
-                tr.className = 'border-b hover:bg-gray-50';
                 tr.innerHTML = `
-                    <td class="py-2 px-2 text-sm flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background-color: ${meta.color}"></span> ${meta.label}</td>
-                    <td class="py-2 px-2 text-right text-sm">${sc.spent.toLocaleString()}円</td>
-                    <td class="py-2 px-2 text-right text-sm text-gray-500">${budget > 0 ? budget.toLocaleString() + '円' : '-'}</td>
-                    <td class="py-2 px-2 text-right text-sm ${sc.spent > budget && budget > 0 ? 'text-red-500 font-bold' : ''}">${pct}</td>
+                    <td style="display:flex;align-items:center;gap:8px;"><span class="cat-dot" style="background-color:${meta.color}"></span>${meta.label}</td>
+                    <td style="text-align:right;">¥${sc.spent.toLocaleString()}</td>
+                    <td style="text-align:right;color:var(--text-muted);">${budgetVal > 0 ? '¥' + budgetVal.toLocaleString() : '未設定'}</td>
+                    <td style="text-align:right;font-weight:700;" class="${isOver ? 'text-red-500' : ''}">${percentText}</td>
                 `;
                 tableBody.appendChild(tr);
             }
         });
     }
     
-    const topItemsList = el('topExpensiveItemsList');
-    const topStoresList = el('topStoresList');
+    // Rankings lists updates
+    renderRankings(datasetTxns);
+    updateShareCharts(datasetTxns);
+}
+
+function renderRankings(datasetTxns) {
+    const itemsList = el('topExpensiveItemsList');
+    const storesList = el('topStoresList');
     
-    if (topItemsList) {
-        topItemsList.innerHTML = '';
+    if (itemsList) {
+        itemsList.innerHTML = '';
         let allItems = [];
-        txns.forEach(t => t.items.forEach(i => allItems.push({name: i.name, price: i.price, date: t.date, store: t.storeName})));
-        allItems.sort((a,b) => b.price - a.price);
-        allItems.slice(0,10).forEach((item, idx) => {
-            const li = document.createElement('li');
-            li.className = 'flex justify-between items-center text-sm py-1 border-b border-gray-100 last:border-0';
-            li.innerHTML = `<div class="flex items-center gap-2 overflow-hidden"><span class="font-bold text-gray-400 w-4">${idx+1}.</span><span class="truncate">${item.name} <span class="text-xs text-gray-400">(${item.store})</span></span></div><span class="font-bold">${item.price.toLocaleString()}円</span>`;
-            topItemsList.appendChild(li);
+        datasetTxns.forEach(t => {
+            t.items.forEach(i => {
+                allItems.push({ name: i.name, price: i.price, date: t.date, store: t.storeName, category: i.category });
+            });
         });
+        
+        // Sort price desc
+        allItems.sort((a, b) => b.price - a.price);
+        
+        const top10Items = allItems.slice(0, 10);
+        if (top10Items.length === 0) {
+            itemsList.innerHTML = '<div class="empty-state" style="padding:16px;">ランキングデータがありません</div>';
+        } else {
+            top10Items.forEach((item, index) => {
+                const badgeMeta = categoryMeta[item.category || 'others'] || categoryMeta.others;
+                const li = document.createElement('li');
+                li.className = 'ranking-item';
+                li.innerHTML = `
+                    <div class="ranking-left-info">
+                        <span class="ranking-index">${index + 1}</span>
+                        <div class="ranking-name-desc">
+                            <div class="ranking-main-name">${item.name}</div>
+                            <div class="ranking-sub-desc">${item.store} | ${item.date} <span class="badge ${badgeMeta.class}" style="padding:0px 4px;font-size:7px;">${badgeMeta.label}</span></div>
+                        </div>
+                    </div>
+                    <span class="ranking-price">¥${item.price.toLocaleString()}</span>
+                `;
+                itemsList.appendChild(li);
+            });
+        }
     }
     
-    if (topStoresList) {
-        topStoresList.innerHTML = '';
-        const stores = {};
-        txns.forEach(t => {
-            if(!stores[t.storeName]) stores[t.storeName] = { total: 0, count: 0 };
-            stores[t.storeName].total += t.total;
-            stores[t.storeName].count += 1;
+    if (storesList) {
+        storesList.innerHTML = '';
+        const storeGroups = {};
+        datasetTxns.forEach(t => {
+            if (!storeGroups[t.storeName]) {
+                storeGroups[t.storeName] = { count: 0, total: 0 };
+            }
+            storeGroups[t.storeName].count += 1;
+            storeGroups[t.storeName].total += t.total;
         });
-        const storeArr = Object.keys(stores).map(k => ({name: k, ...stores[k]})).sort((a,b) => b.total - a.total);
-        storeArr.slice(0,10).forEach((st, idx) => {
-            const li = document.createElement('li');
-            li.className = 'flex justify-between items-center text-sm py-1 border-b border-gray-100 last:border-0';
-            li.innerHTML = `<div class="flex items-center gap-2 overflow-hidden"><span class="font-bold text-gray-400 w-4">${idx+1}.</span><span class="truncate">${st.name} <span class="text-xs text-gray-400">${st.count}回利用</span></span></div><span class="font-bold">${st.total.toLocaleString()}円</span>`;
-            topStoresList.appendChild(li);
-        });
+        
+        const sortedStores = Object.keys(storeGroups)
+            .map(k => ({ name: k, count: storeGroups[k].count, total: storeGroups[k].total }))
+            .sort((a, b) => b.count - a.count); // sort by frequency
+            
+        const top10Stores = sortedStores.slice(0, 10);
+        if (top10Stores.length === 0) {
+            storesList.innerHTML = '<div class="empty-state" style="padding:16px;">ランキングデータがありません</div>';
+        } else {
+            top10Stores.forEach((st, index) => {
+                const li = document.createElement('li');
+                li.className = 'ranking-item';
+                li.innerHTML = `
+                    <div class="ranking-left-info">
+                        <span class="ranking-index">${index + 1}</span>
+                        <div class="ranking-name-desc">
+                            <div class="ranking-main-name">${st.name}</div>
+                            <div class="ranking-sub-desc">利用回数: ${st.count} 回</div>
+                        </div>
+                    </div>
+                    <span class="ranking-price">¥${st.total.toLocaleString()}</span>
+                `;
+                storesList.appendChild(li);
+            });
+        }
     }
+}
+
+// 23. Budgets Periods settings & listings
+function saveBudgetPeriodConfig() {
+    const startMonth = el('budgetStartDate').value;
+    const endMonth = el('budgetEndDate').value;
+    
+    if (!startMonth || !endMonth) {
+        showToast('開始月と終了月を選択してください。', 'error');
+        return;
+    }
+    
+    if (startMonth > endMonth) {
+        showToast('開始月は終了月より前の月を選択してください。', 'error');
+        return;
+    }
+    
+    const [sy, sm] = startMonth.split('-');
+    const [ey, em] = endMonth.split('-');
+    const startDate = `${sy}-${sm}-01`;
+    const lastDay = new Date(ey, em, 0).getDate();
+    const endDate = `${ey}-${em}-${lastDay}`;
+    
+    const categories = {};
+    qsa('.budget-cat-input').forEach(input => {
+        const val = parseInt(input.value) || 0;
+        if (val > 0) {
+            categories[input.getAttribute('data-category')] = val;
+        }
+    });
+    
+    if (editingBudgetPeriodId) {
+        const index = budgets.findIndex(b => b.id === editingBudgetPeriodId);
+        if (index > -1) {
+            budgets[index] = { ...budgets[index], startDate, endDate, categories };
+            showToast('予算設定を更新しました。', 'success');
+        }
+    } else {
+        budgets.push({
+            id: 'bgt-' + Date.now().toString(),
+            startDate,
+            endDate,
+            categories
+        });
+        showToast('予算期間を設定しました。', 'success');
+    }
+    
+    saveData('budgets');
+    resetBudgetConfigForm();
+    renderBudgetsList();
+}
+
+function renderBudgetsList() {
+    const container = el('budgetPeriodsList');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    // Sort desc start date
+    const sorted = [...budgets].sort((a, b) => b.startDate.localeCompare(a.startDate));
+    
+    if (sorted.length === 0) {
+        container.innerHTML = '<div class="empty-state"><p>設定された予算期間はありません。</p></div>';
+        return;
+    }
+    
+    sorted.forEach(b => {
+        const total = Object.values(b.categories).reduce((sum, v) => sum + v, 0);
+        const startLabel = b.startDate.substring(0, 7).replace('-', '年') + '月';
+        const endLabel = b.endDate.substring(0, 7).replace('-', '年') + '月';
+        
+        let pillDetailsHtml = '';
+        Object.entries(b.categories).forEach(([k, v]) => {
+            const meta = categoryMeta[k] || categoryMeta.others;
+            pillDetailsHtml += `
+                <div class="budget-period-cat-pill">
+                    <span class="budget-period-cat-label">${meta.label}</span>
+                    <span class="budget-period-cat-val">¥${v.toLocaleString()}</span>
+                </div>
+            `;
+        });
+        
+        const card = document.createElement('div');
+        card.className = 'budget-period-card';
+        card.innerHTML = `
+            <div class="budget-period-header">
+                <div>
+                    <div class="budget-period-title">${startLabel} 〜 ${endLabel}</div>
+                    <span style="font-size:0.8rem;color:var(--text-muted);">総予算: ¥${total.toLocaleString()}</span>
+                </div>
+                <div class="budget-period-actions">
+                    <button class="period-action-btn" onclick="editBudgetPeriod('${b.id}')" title="編集"><i data-lucide="edit-2"></i></button>
+                    <button class="period-action-btn delete" onclick="deleteBudgetPeriod('${b.id}')" title="削除"><i data-lucide="trash-2"></i></button>
+                </div>
+            </div>
+            <div class="budget-period-categories">
+                ${pillDetailsHtml}
+            </div>
+        `;
+        container.appendChild(card);
+    });
     
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
-// 21. Category Doughnut Charts
-function initCharts() {
-    qsa('.categoryChartCanvas').forEach(canvas => {
-        const ctx = canvas.getContext('2d');
-        const chart = new Chart(ctx, {
-            type: 'doughnut',
-            data: { labels: ['データなし'], datasets: [{ data: [1], backgroundColor: ['#e5e7eb'] }] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } } }, cutout: '60%' }
-        });
-        categoryCharts.push(chart);
+window.editBudgetPeriod = function(id) {
+    const b = budgets.find(x => x.id === id);
+    if (!b) return;
+    
+    editingBudgetPeriodId = id;
+    if (el('budgetFormTitle')) el('budgetFormTitle').innerHTML = '<i data-lucide="edit" style="color:var(--primary)"></i> 予算の編集';
+    
+    if (el('budgetStartDate')) el('budgetStartDate').value = b.startDate.substring(0, 7);
+    if (el('budgetEndDate')) el('budgetEndDate').value = b.endDate.substring(0, 7);
+    
+    qsa('.budget-cat-input').forEach(input => {
+        const cat = input.getAttribute('data-category');
+        input.value = b.categories[cat] || '';
     });
-}
-function updateCategoryCharts(monthlyTxns) {
-    const spends = {};
-    Object.keys(categoryMeta).forEach(k => spends[k] = 0);
     
-    let total = 0;
-    monthlyTxns.forEach(t => t.items.forEach(item => {
-        spends[item.category || 'others'] += item.price;
-        total += item.price;
-    }));
-    
-    const labels = [];
-    const data = [];
-    const bg = [];
-    
-    if (total === 0) {
-        labels.push('データなし');
-        data.push(1);
-        bg.push('#e5e7eb');
-    } else {
-        Object.entries(categoryMeta).forEach(([k, meta]) => {
-            if (spends[k] > 0) {
-                labels.push(meta.label);
-                data.push(spends[k]);
-                bg.push(meta.color);
-            }
-        });
-    }
-    
-    categoryCharts.forEach(chart => {
-        chart.data.labels = labels;
-        chart.data.datasets[0].data = data;
-        chart.data.datasets[0].backgroundColor = bg;
-        chart.update();
-    });
+    if (el('budgetStartDate')) el('budgetStartDate').scrollIntoView({ behavior: 'smooth', block: 'center' });
+};
+
+window.deleteBudgetPeriod = function(id) {
+    if (!confirm('この予算設定を削除しますか？')) return;
+    budgets = budgets.filter(b => b.id !== id);
+    saveData('budgets');
+    renderBudgetsList();
+    showToast('予算設定を削除しました。', 'info');
+};
+
+function resetBudgetConfigForm() {
+    editingBudgetPeriodId = null;
+    if (el('budgetFormTitle')) el('budgetFormTitle').innerHTML = '<i data-lucide="plus-circle" style="color:var(--accent);"></i> 予算期間の新規作成';
+    if (el('budgetStartDate')) el('budgetStartDate').value = '';
+    if (el('budgetEndDate')) el('budgetEndDate').value = '';
+    qsa('.budget-cat-input').forEach(input => input.value = '');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
-// 22. CSV Export
-function exportToCsv() {
-    if (transactions.length === 0) { showToast('エクスポートするデータがありません', 'error'); return; }
+// 24. Recurring Costs settings & listings
+function saveRecurringExpenseConfig() {
+    const name = el('recurringName').value.trim();
+    const amount = parseInt(el('recurringAmount').value) || 0;
+    const category = el('recurringCategory').value;
+    const startDate = el('recurringStartDate').value;
+    const endDate = el('recurringEndDate').value;
     
+    if (!name || amount <= 0 || !category || !startDate) {
+        showToast('必須項目を入力してください（項目名、金額、カテゴリ、適用開始日）。', 'error');
+        return;
+    }
+    
+    if (editingRecurringId) {
+        const index = recurringExpenses.findIndex(r => r.id === editingRecurringId);
+        if (index > -1) {
+            recurringExpenses[index] = {
+                ...recurringExpenses[index],
+                name, amount, category, startDate, endDate
+            };
+            showToast('固定費設定を更新しました。', 'success');
+        }
+    } else {
+        recurringExpenses.push({
+            id: 'rec-' + Date.now().toString(),
+            name, amount, category, startDate, endDate
+        });
+        showToast('固定費を設定しました。', 'success');
+    }
+    
+    saveData('recurring');
+    resetRecurringConfigForm();
+    renderRecurringList();
+}
+
+function renderRecurringList() {
+    const container = el('recurringPeriodsList');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    if (recurringExpenses.length === 0) {
+        container.innerHTML = '<div class="empty-state"><p>登録された固定費はありません。</p></div>';
+        return;
+    }
+    
+    recurringExpenses.forEach(r => {
+        const catMeta = categoryMeta[r.category] || categoryMeta.others;
+        const endLabel = r.endDate ? ` 〜 ${r.endDate}` : ' 〜 継続的';
+        
+        const card = document.createElement('div');
+        card.className = 'budget-period-card';
+        card.innerHTML = `
+            <div class="budget-period-header" style="margin-bottom:0;">
+                <div>
+                    <div class="budget-period-title">${r.name} <span class="badge ${catMeta.class}" style="margin-left:6px;">${catMeta.label}</span></div>
+                    <span style="font-size:0.88rem;font-weight:700;color:var(--accent);">¥${r.amount.toLocaleString()} / 月</span>
+                    <div style="font-size:0.74rem;color:var(--text-muted);margin-top:2px;">適用: ${r.startDate}${endLabel}</div>
+                </div>
+                <div class="budget-period-actions">
+                    <button class="period-action-btn" onclick="editRecurringExpense('${r.id}')" title="編集"><i data-lucide="edit-2"></i></button>
+                    <button class="period-action-btn delete" onclick="deleteRecurringExpense('${r.id}')" title="削除"><i data-lucide="trash-2"></i></button>
+                </div>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+    
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+window.editRecurringExpense = function(id) {
+    const r = recurringExpenses.find(x => x.id === id);
+    if (!r) return;
+    
+    editingRecurringId = id;
+    if (el('recurringFormTitle')) el('recurringFormTitle').innerHTML = '<i data-lucide="edit" style="color:var(--primary)"></i> 固定費の編集';
+    
+    el('recurringName').value = r.name;
+    el('recurringAmount').value = r.amount;
+    el('recurringCategory').value = r.category;
+    el('recurringStartDate').value = r.startDate;
+    el('recurringEndDate').value = r.endDate || '';
+    
+    el('recurringName').scrollIntoView({ behavior: 'smooth', block: 'center' });
+};
+
+window.deleteRecurringExpense = function(id) {
+    if (!confirm('この固定費設定を削除しますか？')) return;
+    recurringExpenses = recurringExpenses.filter(r => r.id !== id);
+    saveData('recurring');
+    renderRecurringList();
+    showToast('固定費設定を削除しました。', 'info');
+};
+
+function resetRecurringConfigForm() {
+    editingRecurringId = null;
+    if (el('recurringFormTitle')) el('recurringFormTitle').innerHTML = '<i data-lucide="plus-circle" style="color:var(--accent);"></i> 定期支出の新規作成';
+    el('recurringName').value = '';
+    el('recurringAmount').value = '';
+    el('recurringCategory').value = '';
+    el('recurringStartDate').value = '';
+    el('recurringEndDate').value = '';
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+// 25. CSV Backups System
+function exportCSV() {
+    if (transactions.length === 0) {
+        showToast('エクスポートするデータがありません。', 'error');
+        return;
+    }
+    
+    // Add UTF-8 BOM to prevent Japanese Mojibake in Excel
     let csvContent = '\uFEFF';
     csvContent += "ID,店舗名,日付,品目名,カテゴリ,価格\n";
     
     transactions.forEach(t => {
-        if (t.items && t.items.length) {
-            t.items.forEach(item => {
-                const catLabel = categoryMeta[item.category] ? categoryMeta[item.category].label : 'その他';
-                csvContent += `${t.id},"${t.storeName.replace(/"/g, '""')}",${t.date},"${item.name.replace(/"/g, '""')}",${catLabel},${item.price}\n`;
-            });
-        } else {
-            csvContent += `${t.id},"${t.storeName.replace(/"/g, '""')}",${t.date},"まとめ入力",その他,${t.total}\n`;
-        }
+        t.items.forEach(item => {
+            const catLabel = categoryMeta[item.category]?.label || 'その他';
+            const escapedStore = t.storeName.replace(/"/g, '""');
+            const escapedItem = item.name.replace(/"/g, '""');
+            csvContent += `${t.id},"${escapedStore}",${t.date},"${escapedItem}",${catLabel},${item.price}\n`;
+        });
     });
     
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `receipts_export_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `smartreceipt_export_${new Date().toISOString().split('T')[0]}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    showToast('CSVデータを出力しました。', 'success');
 }
 
-// 23. CSV Import
-function importFromCsv(e) {
+function importCSV(e) {
     const file = e.target.files[0];
     if (!file) return;
     
     const reader = new FileReader();
     reader.onload = (event) => {
         try {
-            parseCsvData(event.target.result);
-            saveTransactionsToStorage();
+            const lines = event.target.result.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            if (lines.length <= 1) {
+                showToast('インポート可能なデータがありません。', 'error');
+                return;
+            }
+            
+            // Build inverted label map
+            const labelMap = {};
+            Object.entries(categoryMeta).forEach(([k, v]) => labelMap[v.label] = k);
+            
+            const imported = {};
+            
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i];
+                const cols = [];
+                let inQuotes = false;
+                let colVal = '';
+                
+                // Parser for quoted commas
+                for (let c = 0; c < line.length; c++) {
+                    const char = line[c];
+                    if (char === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (char === ',' && !inQuotes) {
+                        cols.push(colVal);
+                        colVal = '';
+                    } else {
+                        colVal += char;
+                    }
+                }
+                cols.push(colVal);
+                
+                if (cols.length < 6) continue;
+                
+                const id = cols[0].trim();
+                const store = cols[1].trim();
+                const date = cols[2].trim();
+                const itemName = cols[3].trim();
+                const categoryLabel = cols[4].trim();
+                const price = parseInt(cols[5].trim()) || 0;
+                
+                const catKey = labelMap[categoryLabel] || 'others';
+                
+                if (!imported[id]) {
+                    imported[id] = {
+                        id: id,
+                        storeName: store,
+                        date: date,
+                        total: 0,
+                        items: []
+                    };
+                }
+                imported[id].items.push({ name: itemName, category: catKey, price: price });
+                imported[id].total += price;
+            }
+            
+            // Merge into transactions
+            Object.values(imported).forEach(newTxn => {
+                const existingIndex = transactions.findIndex(t => t.id === newTxn.id);
+                if (existingIndex > -1) {
+                    transactions[existingIndex] = newTxn;
+                } else {
+                    transactions.push(newTxn);
+                }
+            });
+            
+            saveData('transactions');
             updateDashboard();
-            showToast('CSVインポート完了', 'success');
-        } catch(err) {
-            showToast('CSVパースエラー', 'error');
+            showToast('CSVデータをインポートしました。', 'success');
+        } catch (err) {
+            console.error(err);
+            showToast('CSVパース中にエラーが発生しました。', 'error');
         }
     };
     reader.readAsText(file);
     e.target.value = '';
 }
-function parseCsvData(csvText) {
-    const lines = csvText.split('\n').filter(l => l.trim().length > 0);
-    if (lines.length <= 1) return;
-    
-    const reverseCatMap = {};
-    Object.entries(categoryMeta).forEach(([k, v]) => reverseCatMap[v.label] = k);
-    
-    const importedTxns = {};
-    for (let i = 1; i < lines.length; i++) {
-        let line = lines[i].trim();
-        const row = [];
-        let inQuotes = false;
-        let val = '';
-        for(let c=0; c<line.length; c++) {
-            let char = line[c];
-            if(char === '"') inQuotes = !inQuotes;
-            else if(char === ',' && !inQuotes) { row.push(val); val = ''; }
-            else val += char;
-        }
-        row.push(val);
-        
-        if (row.length < 6) continue;
-        
-        const id = row[0].replace(/"/g, '').trim();
-        const storeName = row[1].replace(/"/g, '').trim();
-        const date = row[2].replace(/"/g, '').trim();
-        const itemName = row[3].replace(/"/g, '').trim();
-        const catLabel = row[4].replace(/"/g, '').trim();
-        const price = parseInt(row[5].replace(/"/g, '').trim()) || 0;
-        
-        if (!importedTxns[id]) importedTxns[id] = { id, storeName, date, total: 0, items: [] };
-        
-        const catKey = reverseCatMap[catLabel] || 'others';
-        importedTxns[id].items.push({ name: itemName, price, category: catKey });
-        importedTxns[id].total += price;
-    }
-    
-    Object.values(importedTxns).forEach(impTx => {
-        const existIdx = transactions.findIndex(t => t.id === impTx.id);
-        if (existIdx > -1) transactions[existIdx] = impTx;
-        else transactions.push(impTx);
-    });
-}
 
-// 24. Event Listeners Setup
+// 25. DOM Event bindings safely setup
 function setupEventListeners() {
-    if (el('openSettingsBtn')) el('openSettingsBtn').addEventListener('click', openSettingsModal);
-    if (el('closeSettingsBtn')) el('closeSettingsBtn').addEventListener('click', closeSettingsModal);
+    // 1. API key settings modal toggles
+    if (el('openSettingsBtn')) el('openSettingsBtn').addEventListener('click', () => openModal('settingsModal'));
+    if (el('closeSettingsBtn')) el('closeSettingsBtn').addEventListener('click', () => closeModal('settingsModal'));
     if (el('saveApiKeyBtn')) el('saveApiKeyBtn').addEventListener('click', saveApiKey);
     if (el('clearApiKeyBtn')) el('clearApiKeyBtn').addEventListener('click', clearApiKey);
     
+    // 2. CSV Backups buttons
+    if (el('exportCsvBtn')) el('exportCsvBtn').addEventListener('click', exportCSV);
+    if (el('importCsvBtn')) el('importCsvBtn').addEventListener('click', () => {
+        if (el('csvFileInput')) el('csvFileInput').click();
+    });
+    if (el('csvFileInput')) el('csvFileInput').addEventListener('change', importCSV);
+    
+    // 3. Receipt Scan Card Actions
     const dropzone = el('dropzone');
     if (dropzone) {
-        dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('border-blue-500', 'bg-blue-50'); });
-        dropzone.addEventListener('dragleave', e => { e.preventDefault(); dropzone.classList.remove('border-blue-500', 'bg-blue-50'); });
-        dropzone.addEventListener('drop', e => {
+        dropzone.addEventListener('dragover', (e) => {
             e.preventDefault();
-            dropzone.classList.remove('border-blue-500', 'bg-blue-50');
-            if (e.dataTransfer.files.length) {
-                const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
-                if (files.length === 1) processSingleFile(files[0]);
-                else if (files.length > 1) processBulkFiles(files);
+            dropzone.style.borderColor = 'var(--primary)';
+            dropzone.style.background = 'rgba(99, 102, 241, 0.08)';
+        });
+        dropzone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropzone.style.borderColor = '';
+            dropzone.style.background = '';
+        });
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.style.borderColor = '';
+            dropzone.style.background = '';
+            
+            if (e.dataTransfer.files.length > 0) {
+                const imageFiles = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+                if (imageFiles.length === 1) {
+                    processSingleReceipt(imageFiles[0]);
+                } else if (imageFiles.length > 1) {
+                    processMultipleReceipts(imageFiles);
+                }
             }
         });
-        dropzone.addEventListener('click', () => { if(el('fileInput')) el('fileInput').click(); });
+        dropzone.addEventListener('click', () => {
+            if (el('fileInput')) el('fileInput').click();
+        });
     }
-    if (el('fileInput')) el('fileInput').addEventListener('change', handleFileSelect);
+    if (el('fileInput')) el('fileInput').addEventListener('change', handleFileUpload);
     
-    if (el('manualInputBtn')) el('manualInputBtn').addEventListener('click', startManualInput);
-    if (el('exportCsvBtn')) el('exportCsvBtn').addEventListener('click', exportToCsv);
-    if (el('importCsvBtn')) el('importCsvBtn').addEventListener('click', () => { if(el('csvFileInput')) el('csvFileInput').click(); });
-    if (el('csvFileInput')) el('csvFileInput').addEventListener('change', importFromCsv);
-    
-    if (el('addItemBtn')) el('addItemBtn').addEventListener('click', () => addReceiptItem());
-    if (el('saveReceiptBtn')) el('saveReceiptBtn').addEventListener('click', saveCurrentTransaction);
-    if (el('cancelEditBtn')) el('cancelEditBtn').addEventListener('click', resetScannerState);
-    
-    if (el('saveBudgetBtn')) el('saveBudgetBtn').addEventListener('click', saveBudgetPeriod);
-    if (el('resetBudgetFormBtn')) el('resetBudgetFormBtn').addEventListener('click', resetBudgetForm);
-    
-    if (el('saveRecurringBtn')) el('saveRecurringBtn').addEventListener('click', saveRecurringExpense);
-    if (el('resetRecurringFormBtn')) el('resetRecurringFormBtn').addEventListener('click', resetRecurringForm);
-    
+    // 4. Quick Actions
+    if (el('manualInputBtn')) el('manualInputBtn').addEventListener('click', startManualInputForm);
     if (el('startCameraBtn')) el('startCameraBtn').addEventListener('click', startContinuousCamera);
+    
+    // 5. Editor Buttons
+    if (el('addItemBtn')) el('addItemBtn').addEventListener('click', () => addEditorItemRow('', 0, 'others'));
+    if (el('cancelEditBtn')) el('cancelEditBtn').addEventListener('click', cancelEditor);
+    if (el('saveReceiptBtn')) el('saveReceiptBtn').addEventListener('click', saveCurrentTransaction);
+    
+    // 6. Camera Overlay controls
     if (el('closeCameraBtn')) el('closeCameraBtn').addEventListener('click', stopContinuousCamera);
-    if (el('shutterBtn')) el('shutterBtn').addEventListener('click', captureSnapshot);
-    if (el('processCapturedBtn')) el('processCapturedBtn').addEventListener('click', submitCapturedImages);
+    if (el('shutterBtn')) el('shutterBtn').addEventListener('click', captureCameraSnapshot);
+    if (el('processCapturedBtn')) el('processCapturedBtn').addEventListener('click', processCapturedBatches);
     
-    if (el('closeDayDetailBtn')) el('closeDayDetailBtn').addEventListener('click', closeDayModal);
-    if (el('closeDayDetailModalBtn')) el('closeDayDetailModalBtn').addEventListener('click', closeDayModal);
+    // 7. Day Detail Modal Close
+    if (el('closeDayDetailBtn')) el('closeDayDetailBtn').addEventListener('click', () => closeModal('dayDetailModal'));
+    if (el('closeDayDetailModalBtn')) el('closeDayDetailModalBtn').addEventListener('click', () => closeModal('dayDetailModal'));
     
-    qsa('.analyticsPeriodToggle').forEach(btn => {
+    // 8. Budget Config buttons
+    if (el('saveBudgetBtn')) el('saveBudgetBtn').addEventListener('click', saveBudgetPeriodConfig);
+    if (el('resetBudgetFormBtn')) el('resetBudgetFormBtn').addEventListener('click', resetBudgetConfigForm);
+    
+    // 9. Recurring Config buttons
+    if (el('saveRecurringBtn')) el('saveRecurringBtn').addEventListener('click', saveRecurringExpenseConfig);
+    if (el('resetRecurringFormBtn')) el('resetRecurringFormBtn').addEventListener('click', resetRecurringConfigForm);
+    
+    // 10. Analytics Period toggler
+    qsa('#analyticsPeriodToggle .toggle-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            qsa('.analyticsPeriodToggle').forEach(b => {
-                b.classList.remove('bg-blue-600', 'text-white');
-                b.classList.add('bg-white', 'text-gray-700');
-            });
-            e.currentTarget.classList.add('bg-blue-600', 'text-white');
-            e.currentTarget.classList.remove('bg-white', 'text-gray-700');
-            
+            qsa('#analyticsPeriodToggle .toggle-btn').forEach(b => b.classList.remove('active'));
+            e.currentTarget.classList.add('active');
             analyticsPeriod = e.currentTarget.getAttribute('data-period');
             updateAnalyticsView();
         });
