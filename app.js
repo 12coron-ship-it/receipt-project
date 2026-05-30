@@ -1,10 +1,13 @@
 // App State Management
 let transactions = [];
-let categoryChart = null;
+let budgets = [];
+let categoryCharts = []; // Holds category doughnut charts (dashboard and analytics)
+let dailyTrendChart = null; // Holds daily spending line chart (analytics)
 let currentScannedData = null;
-let editingTransactionId = null; // Holds the ID of the transaction being edited (if any)
-let currentMonth = new Date(); // Tracks the currently selected month/year for display
-let activeFilterDate = null; // Tracks calendar click filter (e.g. "2026-05-30")
+let editingTransactionId = null; // ID of transaction being edited
+let editingBudgetPeriodId = null; // ID of budget period being edited
+let currentMonth = new Date(); // Active viewing month
+let activeFilterDate = null; // Holds filtered date string "YYYY-MM-DD"
 
 // Mock Data Database for Demo Mode (Each item now has its own category)
 const mockReceipts = [
@@ -26,7 +29,7 @@ const mockReceipts = [
             { name: "こだわりツナマヨおにぎり", price: 160, category: "food" },
             { name: "特製サラダチキン", price: 290, category: "food" },
             { name: "濃いお茶 600ml", price: 150, category: "food" },
-            { name: "しっとりバームクーヘン", price: 150, category: "shopping" } // Different category item
+            { name: "しっとりバームクーヘン", price: 150, category: "shopping" }
         ]
     },
     {
@@ -44,7 +47,7 @@ const mockReceipts = [
         total: 2300,
         items: [
             { name: "映画鑑賞券（一般）", price: 1900, category: "entertainment" },
-            { name: "ポップコーンセット (塩/M)", price: 400, category: "food" } // Different category item
+            { name: "ポップコーンセット (塩/M)", price: 400, category: "food" }
         ]
     },
     {
@@ -87,21 +90,20 @@ const receiptTotal = document.getElementById('receiptTotal');
 const saveReceiptBtn = document.getElementById('saveReceiptBtn');
 const cancelEditBtn = document.getElementById('cancelEditBtn');
 
-// Dashboard Elements
-const currentMonthYearLabel = document.getElementById('currentMonthYearLabel');
-const prevMonthBtn = document.getElementById('prevMonthBtn');
-const nextMonthBtn = document.getElementById('nextMonthBtn');
-const monthlyBudgetInput = document.getElementById('monthlyBudgetInput');
-const budgetPercentLabel = document.getElementById('budgetPercentLabel');
-const budgetRemainingLabel = document.getElementById('budgetRemainingLabel');
-const budgetProgressBar = document.getElementById('budgetProgressBar');
+// Dashboard Elements (using class queries for elements duplicated in SPA tabs)
+const currentMonthYearLabels = document.querySelectorAll('.currentMonthYearLabel');
+const prevMonthBtns = document.querySelectorAll('.prevMonthBtn');
+const nextMonthBtns = document.querySelectorAll('.nextMonthBtn');
+const budgetPercentLabels = document.querySelectorAll('.budgetPercentLabel');
+const budgetRemainingLabels = document.querySelectorAll('.budgetRemainingLabel');
+const budgetProgressBars = document.querySelectorAll('.budgetProgressBar');
 
-const totalExpensesVal = document.getElementById('totalExpensesVal');
-const receiptCountVal = document.getElementById('receiptCountVal');
-const calendarGrid = document.getElementById('calendarGrid');
-const historyList = document.getElementById('historyList');
-const historyEmptyState = document.getElementById('historyEmptyState');
-const filterActiveBadge = document.getElementById('filterActiveBadge');
+const totalExpensesVals = document.querySelectorAll('.totalExpensesVal');
+const receiptCountVals = document.querySelectorAll('.receiptCountVal');
+const calendarGrid = document.querySelector('.calendarGrid');
+const historyList = document.querySelector('.historyList');
+const historyEmptyState = document.querySelector('.historyEmptyState');
+const filterActiveBadge = document.querySelector('.filterActiveBadge');
 
 const openSettingsBtn = document.getElementById('openSettingsBtn');
 const closeSettingsBtn = document.getElementById('closeSettingsBtn');
@@ -112,13 +114,36 @@ const clearApiKeyBtn = document.getElementById('clearApiKeyBtn');
 const apiKeyStatus = document.getElementById('apiKeyStatus');
 const toastContainer = document.getElementById('toastContainer');
 
+// Day Detail Modal Elements
+const dayDetailModal = document.getElementById('dayDetailModal');
+const closeDayDetailBtn = document.getElementById('closeDayDetailBtn');
+const closeDayDetailModalBtn = document.getElementById('closeDayDetailModalBtn');
+const dayDetailTitle = document.getElementById('dayDetailTitle');
+const dayDetailTotalSum = document.getElementById('dayDetailTotalSum');
+const dayDetailItemsList = document.getElementById('dayDetailItemsList');
+
+// Budget View Elements
+const budgetStartDate = document.getElementById('budgetStartDate');
+const budgetEndDate = document.getElementById('budgetEndDate');
+const budgetFood = document.getElementById('budgetFood');
+const budgetUtilities = document.getElementById('budgetUtilities');
+const budgetShopping = document.getElementById('budgetShopping');
+const budgetEntertainment = document.getElementById('budgetEntertainment');
+const budgetOthers = document.getElementById('budgetOthers');
+const saveBudgetBtn = document.getElementById('saveBudgetBtn');
+const resetBudgetFormBtn = document.getElementById('resetBudgetFormBtn');
+const budgetPeriodsList = document.getElementById('budgetPeriodsList');
+const budgetFormTitle = document.getElementById('budgetFormTitle');
+
 // Initialize the Application
 document.addEventListener('DOMContentLoaded', () => {
     loadApiKey();
     loadTransactions();
+    loadBudgets();
+    initTabNavigation();
     initMonthSelector();
-    initChart();
-    updateDashboard(); // Will also build calendar
+    initCharts();
+    updateDashboard(); // Redraws Dashboard and updates Active view
     setupEventListeners();
 });
 
@@ -180,40 +205,82 @@ function closeModal() {
     settingsModal.classList.remove('active');
 }
 
+// SPA Tab Navigation Init
+function initTabNavigation() {
+    const tabs = document.querySelectorAll('.nav-tab');
+    const panels = document.querySelectorAll('.view-panel');
+    
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const targetTab = tab.getAttribute('data-tab');
+            
+            // Deactivate all tabs
+            tabs.forEach(t => t.classList.remove('active'));
+            // Hide all panels
+            panels.forEach(p => p.classList.remove('active'));
+            
+            // Activate target
+            tab.classList.add('active');
+            document.getElementById(`${targetTab}View`).classList.add('active');
+            
+            // Trigger specific tab update logic
+            if (targetTab === 'analytics') {
+                updateAnalyticsView();
+            } else if (targetTab === 'budgets') {
+                renderBudgetsList();
+            } else if (targetTab === 'dashboard') {
+                updateDashboard();
+            }
+            
+            lucide.createIcons();
+        });
+    });
+}
+
 // Month Selector Initialization
 function initMonthSelector() {
-    // Set to current month/year
     updateMonthLabel();
-    loadBudgetForCurrentMonth();
     
-    prevMonthBtn.addEventListener('click', () => {
-        currentMonth.setMonth(currentMonth.getMonth() - 1);
-        activeFilterDate = null; // Clear day filter on month change
-        updateMonthLabel();
-        loadBudgetForCurrentMonth();
-        updateDashboard();
+    // Bind prev button clicks (runs across both tab instances)
+    prevMonthBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            currentMonth.setMonth(currentMonth.getMonth() - 1);
+            activeFilterDate = null;
+            updateMonthLabel();
+            
+            // Re-render currently active view
+            const activeTab = document.querySelector('.nav-tab.active').getAttribute('data-tab');
+            if (activeTab === 'analytics') {
+                updateAnalyticsView();
+            } else {
+                updateDashboard();
+            }
+        });
     });
     
-    nextMonthBtn.addEventListener('click', () => {
-        currentMonth.setMonth(currentMonth.getMonth() + 1);
-        activeFilterDate = null;
-        updateMonthLabel();
-        loadBudgetForCurrentMonth();
-        updateDashboard();
-    });
-
-    monthlyBudgetInput.addEventListener('change', () => {
-        const budgetVal = parseInt(monthlyBudgetInput.value) || 0;
-        const key = `budget_${getYearMonthString(currentMonth)}`;
-        localStorage.setItem(key, budgetVal);
-        updateDashboard();
+    // Bind next button clicks
+    nextMonthBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            currentMonth.setMonth(currentMonth.getMonth() + 1);
+            activeFilterDate = null;
+            updateMonthLabel();
+            
+            const activeTab = document.querySelector('.nav-tab.active').getAttribute('data-tab');
+            if (activeTab === 'analytics') {
+                updateAnalyticsView();
+            } else {
+                updateDashboard();
+            }
+        });
     });
 }
 
 function updateMonthLabel() {
     const year = currentMonth.getFullYear();
     const month = String(currentMonth.getMonth() + 1).padStart(2, '0');
-    currentMonthYearLabel.innerText = `${year}年${month}月`;
+    currentMonthYearLabels.forEach(label => {
+        label.innerText = `${year}年${month}月`;
+    });
 }
 
 function getYearMonthString(dateObj) {
@@ -222,20 +289,220 @@ function getYearMonthString(dateObj) {
     return `${year}_${month}`;
 }
 
-function loadBudgetForCurrentMonth() {
-    const key = `budget_${getYearMonthString(currentMonth)}`;
-    const savedBudget = localStorage.getItem(key);
-    if (savedBudget) {
-        monthlyBudgetInput.value = savedBudget;
+// Load Budgets list from Storage
+function loadBudgets() {
+    const saved = localStorage.getItem('receipt_budgets');
+    if (saved) {
+        try {
+            budgets = JSON.parse(saved);
+        } catch (e) {
+            console.error('Failed to parse budgets:', e);
+            budgets = [];
+        }
     } else {
-        monthlyBudgetInput.value = 50000; // Default budget: 50,000 yen
-        localStorage.setItem(key, 50000);
+        // Fallback default budget period
+        const today = new Date();
+        const start = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+        const end = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
+        budgets = [{
+            id: 'default-budget-id',
+            startDate: start,
+            endDate: end,
+            categories: { food: 25000, utilities: 10000, shopping: 10000, entertainment: 3000, others: 2000 }
+        }];
+        localStorage.setItem('receipt_budgets', JSON.stringify(budgets));
     }
+}
+
+// Save Budget Period Config
+function saveBudgetPeriod() {
+    const start = budgetStartDate.value;
+    const end = budgetEndDate.value;
+    
+    if (!start || !end) {
+        showToast('開始日と終了日を選択してください。', 'error');
+        return;
+    }
+    
+    if (start > end) {
+        showToast('開始日は終了日以前の日付を入力してください。', 'error');
+        return;
+    }
+
+    const categories = {
+        food: parseInt(budgetFood.value) || 0,
+        utilities: parseInt(budgetUtilities.value) || 0,
+        shopping: parseInt(budgetShopping.value) || 0,
+        entertainment: parseInt(budgetEntertainment.value) || 0,
+        others: parseInt(budgetOthers.value) || 0
+    };
+
+    if (editingBudgetPeriodId) {
+        // Edit Mode: Update
+        const idx = budgets.findIndex(b => b.id === editingBudgetPeriodId);
+        if (idx !== -1) {
+            budgets[idx] = {
+                id: editingBudgetPeriodId,
+                startDate: start,
+                endDate: end,
+                categories: categories
+            };
+            showToast('予算設定を更新しました！', 'success');
+        }
+        editingBudgetPeriodId = null;
+        budgetFormTitle.innerHTML = `<i data-lucide="plus-circle" style="color: var(--accent);"></i> 予算期間の新規作成`;
+    } else {
+        // Create Mode: Add
+        const newBudget = {
+            id: Date.now().toString(),
+            startDate: start,
+            endDate: end,
+            categories: categories
+        };
+        budgets.unshift(newBudget);
+        showToast('新しい予算を設定しました！', 'success');
+    }
+
+    localStorage.setItem('receipt_budgets', JSON.stringify(budgets));
+    resetBudgetForm();
+    renderBudgetsList();
+}
+
+function resetBudgetForm() {
+    budgetStartDate.value = '';
+    budgetEndDate.value = '';
+    budgetFood.value = 0;
+    budgetUtilities.value = 0;
+    budgetShopping.value = 0;
+    budgetEntertainment.value = 0;
+    budgetOthers.value = 0;
+    editingBudgetPeriodId = null;
+    budgetFormTitle.innerHTML = `<i data-lucide="plus-circle" style="color: var(--accent);"></i> 予算期間の新規作成`;
+}
+
+function editBudgetPeriod(id) {
+    const b = budgets.find(x => x.id === id);
+    if (!b) return;
+
+    editingBudgetPeriodId = id;
+    budgetStartDate.value = b.startDate;
+    budgetEndDate.value = b.endDate;
+    budgetFood.value = b.categories.food || 0;
+    budgetUtilities.value = b.categories.utilities || 0;
+    budgetShopping.value = b.categories.shopping || 0;
+    budgetEntertainment.value = b.categories.entertainment || 0;
+    budgetOthers.value = b.categories.others || 0;
+    
+    budgetFormTitle.innerHTML = `<i data-lucide="edit-3" style="color: var(--primary);"></i> 予算期間の編集`;
+    document.getElementById('budgetFormTitle').scrollIntoView({ behavior: 'smooth' });
+    lucide.createIcons();
+}
+
+function deleteBudgetPeriod(id) {
+    budgets = budgets.filter(b => b.id !== id);
+    localStorage.setItem('receipt_budgets', JSON.stringify(budgets));
+    showToast('予算設定を削除しました。', 'info');
+    renderBudgetsList();
+}
+
+// Render list of saved budgets under "予算設定" tab
+function renderBudgetsList() {
+    budgetPeriodsList.innerHTML = '';
+    
+    if (budgets.length === 0) {
+        budgetPeriodsList.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-icon"><i data-lucide="info"></i></div>
+                <p>設定された予算期間はありません</p>
+            </div>
+        `;
+        lucide.createIcons();
+        return;
+    }
+
+    budgets.forEach(b => {
+        const sum = Object.values(b.categories).reduce((acc, curr) => acc + curr, 0);
+        const card = document.createElement('div');
+        card.className = 'glass-panel budget-period-card';
+        card.innerHTML = `
+            <div class="budget-period-header">
+                <div class="budget-period-dates">
+                    <i data-lucide="calendar-range" style="color: var(--primary); width:18px;"></i>
+                    <span>${b.startDate} 〜 ${b.endDate}</span>
+                </div>
+                <div>
+                    <button class="btn btn-icon edit-budget-btn" data-id="${b.id}" title="編集">
+                        <i data-lucide="edit-2" style="width:14px;"></i>
+                    </button>
+                    <button class="btn btn-icon delete-budget-btn" data-id="${b.id}" title="削除">
+                        <i data-lucide="trash-2" style="width:14px;"></i>
+                    </button>
+                </div>
+            </div>
+            <div style="font-size: 13px; font-weight: 600; margin-bottom: 12px;">合計予算: ¥${sum.toLocaleString()}</div>
+            <div class="budget-category-grid">
+                <div class="budget-cat-pill">
+                    <span class="budget-cat-label">食費</span>
+                    <span class="budget-cat-amount">¥${(b.categories.food || 0).toLocaleString()}</span>
+                </div>
+                <div class="budget-cat-pill">
+                    <span class="budget-cat-label">光熱・通信</span>
+                    <span class="budget-cat-amount">¥${(b.categories.utilities || 0).toLocaleString()}</span>
+                </div>
+                <div class="budget-cat-pill">
+                    <span class="budget-cat-label">日用品</span>
+                    <span class="budget-cat-amount">¥${(b.categories.shopping || 0).toLocaleString()}</span>
+                </div>
+                <div class="budget-cat-pill">
+                    <span class="budget-cat-label">娯楽</span>
+                    <span class="budget-cat-amount">¥${(b.categories.entertainment || 0).toLocaleString()}</span>
+                </div>
+                <div class="budget-cat-pill">
+                    <span class="budget-cat-label">その他</span>
+                    <span class="budget-cat-amount">¥${(b.categories.others || 0).toLocaleString()}</span>
+                </div>
+            </div>
+        `;
+        budgetPeriodsList.appendChild(card);
+    });
+
+    // Event bindings
+    budgetPeriodsList.querySelectorAll('.edit-budget-btn').forEach(btn => {
+        btn.addEventListener('click', () => editBudgetPeriod(btn.getAttribute('data-id')));
+    });
+
+    budgetPeriodsList.querySelectorAll('.delete-budget-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (confirm('この予算設定を削除しますか？')) {
+                deleteBudgetPeriod(btn.getAttribute('data-id'));
+            }
+        });
+    });
+
+    lucide.createIcons();
+}
+
+// Find budget covering currently viewed month
+function getActiveBudgetForMonth(date) {
+    const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
+    const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+
+    const match = budgets.find(b => {
+        const bStart = new Date(b.startDate);
+        const bEnd = new Date(b.endDate);
+        // Checks if budget dates overlap with month range
+        return bStart <= monthEnd && bEnd >= monthStart;
+    });
+
+    if (match) return match.categories;
+    
+    // Default fallback if no dates align
+    return { food: 0, utilities: 0, shopping: 0, entertainment: 0, others: 0 };
 }
 
 // Event Listeners Setup
 function setupEventListeners() {
-    // Open/Close Modal
+    // Open/Close settings modal
     openSettingsBtn.addEventListener('click', openModal);
     closeSettingsBtn.addEventListener('click', closeModal);
     settingsModal.addEventListener('click', (e) => {
@@ -244,6 +511,9 @@ function setupEventListeners() {
     
     saveApiKeyBtn.addEventListener('click', saveApiKey);
     clearApiKeyBtn.addEventListener('click', clearApiKey);
+
+    // CSV export trigger
+    document.getElementById('exportCsvBtn').addEventListener('click', exportToCsv);
 
     // File selection / drag drop
     dropzone.addEventListener('click', () => fileInput.click());
@@ -271,8 +541,66 @@ function setupEventListeners() {
     cancelEditBtn.addEventListener('click', resetScannerState);
     saveReceiptBtn.addEventListener('click', saveCurrentTransaction);
 
-    // CSV Export
-    document.getElementById('exportCsvBtn').addEventListener('click', exportToCsv);
+    // Day detail Modal close buttons
+    closeDayDetailBtn.addEventListener('click', closeDayModal);
+    closeDayDetailModalBtn.addEventListener('click', closeDayModal);
+    dayDetailModal.addEventListener('click', (e) => {
+        if (e.target === dayDetailModal) closeDayModal();
+    });
+
+    // Budget Tab control triggers
+    saveBudgetBtn.addEventListener('click', saveBudgetPeriod);
+    resetBudgetFormBtn.addEventListener('click', resetBudgetForm);
+}
+
+// Day Detail Modal Popover
+function openDayModal(dateStr, spent, dayTxns) {
+    const dateObj = new Date(dateStr);
+    const mStr = dateObj.getMonth() + 1;
+    const dStr = dateObj.getDate();
+    dayDetailTitle.innerText = `${dateObj.getFullYear()}年${mStr}月${dStr}日の支出明細`;
+    dayDetailTotalSum.innerText = `¥${spent.toLocaleString()}`;
+
+    dayDetailItemsList.innerHTML = '';
+    
+    if (dayTxns.length === 0) {
+        dayDetailItemsList.innerHTML = `<p style="text-align:center; color:var(--text-muted);">取引データがありません。</p>`;
+        dayDetailModal.classList.add('active');
+        return;
+    }
+
+    dayTxns.forEach(t => {
+        const storeDiv = document.createElement('div');
+        storeDiv.style.margin = '15px 0 8px 0';
+        storeDiv.style.borderBottom = '1px dashed var(--card-border)';
+        storeDiv.style.paddingBottom = '4px';
+        storeDiv.style.fontSize = '12px';
+        storeDiv.style.fontWeight = '700';
+        storeDiv.style.color = 'var(--primary)';
+        storeDiv.innerText = `${t.storeName}`;
+        dayDetailItemsList.appendChild(storeDiv);
+
+        t.items.forEach(item => {
+            const meta = categoryMeta[item.category] || categoryMeta.others;
+            const itemRow = document.createElement('div');
+            itemRow.className = 'day-item-card';
+            itemRow.innerHTML = `
+                <div class="day-item-details">
+                    <div class="day-item-name">${item.name}</div>
+                    <div class="day-item-meta"><span class="badge ${meta.class}">${meta.label}</span></div>
+                </div>
+                <strong style="color:#FFF;">¥${item.price.toLocaleString()}</strong>
+            `;
+            dayDetailItemsList.appendChild(itemRow);
+        });
+    });
+
+    dayDetailModal.classList.add('active');
+    lucide.createIcons();
+}
+
+function closeDayModal() {
+    dayDetailModal.classList.remove('active');
 }
 
 // File Selection Handler (Support Multiple)
@@ -292,7 +620,6 @@ async function processFiles(files) {
     }
 
     if (imageFiles.length === 1) {
-        // Single File Flow (shows scanner visual + interactive editor)
         const file = imageFiles[0];
         const reader = new FileReader();
         reader.onload = function(e) {
@@ -330,9 +657,8 @@ async function processFiles(files) {
                 const result = await processSingleFileInBackground(base64Data, file.type);
                 
                 if (result) {
-                    // Auto save to database
                     const newTransaction = {
-                        id: (Date.now() + i).toString(), // Add index to ensure unique IDs if processed rapidly
+                        id: (Date.now() + i).toString(),
                         storeName: result.storeName || "一括スキャン店舗",
                         date: result.date || new Date().toISOString().split('T')[0],
                         total: result.total || 0,
@@ -346,15 +672,12 @@ async function processFiles(files) {
                 console.error(`Bulk item ${i} failed:`, err);
             }
             
-            // Update progress bar
             const percent = ((i + 1) / imageFiles.length) * 100;
             bulkProgressBar.style.width = `${percent}%`;
         }
         
-        // Save to localStorage
         localStorage.setItem('receipt_transactions', JSON.stringify(transactions));
         
-        // Hide progress, show stats
         bulkProgressContainer.style.display = 'none';
         resetScannerState();
         updateDashboard();
@@ -441,7 +764,6 @@ Output JSON structure:
             return getMockReceiptResult();
         }
     } else {
-        // Wait 1.5 seconds in background for mock effect
         await new Promise(r => setTimeout(r, 1500));
         return getMockReceiptResult();
     }
@@ -452,7 +774,6 @@ function getMockReceiptResult() {
     const randomIndex = Math.floor(Math.random() * mockReceipts.length);
     const selectedMock = JSON.parse(JSON.stringify(mockReceipts[randomIndex]));
     
-    // Set realistic date near today
     const daysAgo = Math.floor(Math.random() * 5);
     selectedMock.date = new Date(Date.now() - (daysAgo * 86400000)).toISOString().split('T')[0];
     return selectedMock;
@@ -547,7 +868,6 @@ Output JSON structure:
     }
 }
 
-// Simulates API processing (Single Flow)
 function runMockScan() {
     setTimeout(() => {
         const selectedMock = getMockReceiptResult();
@@ -556,26 +876,21 @@ function runMockScan() {
     }, 2500);
 }
 
-// Populate UI form editor with scanned/selected data
+// Populate UI form editor
 function populateEditor(data) {
     currentScannedData = data;
-    
-    // Stop scanning animation
     scannerContainer.classList.remove('scanning');
     
-    // Set title based on mode
     if (editingTransactionId) {
         editorTitle.innerHTML = `<i data-lucide="edit-3" style="color: var(--primary)"></i> 取引データの編集`;
     } else {
         editorTitle.innerHTML = `<i data-lucide="edit-3" style="color: var(--primary)"></i> 解析結果の確認・編集`;
     }
     
-    // Populate form fields
     receiptStore.value = data.storeName || '';
     receiptDate.value = data.date || new Date().toISOString().split('T')[0];
     receiptTotal.value = data.total || 0;
     
-    // Populate items list
     itemsList.innerHTML = '';
     if (data.items && data.items.length > 0) {
         data.items.forEach(item => {
@@ -585,18 +900,15 @@ function populateEditor(data) {
         addReceiptItem('商品・サービス合計', data.total || 0, 'others');
     }
     
-    // Display Editor panel
     editorPanel.style.display = 'block';
     editorPanel.scrollIntoView({ behavior: 'smooth' });
     lucide.createIcons();
 }
 
-// Add row to items list in editor (With per-item Category)
 function addReceiptItem(name = '', price = 0, category = 'food') {
     const itemRow = document.createElement('div');
     itemRow.className = 'item-row';
     
-    // Construct options list for category select
     let optionsHtml = '';
     Object.keys(categoryMeta).forEach(key => {
         const meta = categoryMeta[key];
@@ -617,7 +929,6 @@ function addReceiptItem(name = '', price = 0, category = 'food') {
     itemsList.appendChild(itemRow);
     lucide.createIcons();
     
-    // Attach event listeners for price calculation
     const priceInput = itemRow.querySelector('.item-price');
     priceInput.addEventListener('input', calculateTotalFromItems);
     
@@ -628,7 +939,6 @@ function addReceiptItem(name = '', price = 0, category = 'food') {
     });
 }
 
-// Calculate sum of item prices and set total
 function calculateTotalFromItems() {
     const priceInputs = itemsList.querySelectorAll('.item-price');
     let sum = 0;
@@ -639,7 +949,6 @@ function calculateTotalFromItems() {
     receiptTotal.value = sum;
 }
 
-// Reset scan UI state
 function resetScannerState() {
     dropzone.style.display = 'block';
     scannerContainer.style.display = 'none';
@@ -650,22 +959,17 @@ function resetScannerState() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// Edit existing transaction
 function editTransaction(id) {
     const txn = transactions.find(t => t.id === id);
     if (!txn) return;
     
     editingTransactionId = id;
-    
-    // Populate form using helper
     populateEditor(txn);
     
-    // Hide upload zone & show image container (without scanner line)
     dropzone.style.display = 'none';
-    scannerContainer.style.display = 'none'; // Keep image hidden when editing text
+    scannerContainer.style.display = 'none';
 }
 
-// Save active transaction to localStorage
 function saveCurrentTransaction() {
     const store = receiptStore.value.trim();
     const date = receiptDate.value;
@@ -680,7 +984,6 @@ function saveCurrentTransaction() {
         return;
     }
 
-    // Capture items with categories
     const itemRows = itemsList.querySelectorAll('.item-row');
     const items = [];
     itemRows.forEach(row => {
@@ -693,7 +996,6 @@ function saveCurrentTransaction() {
     });
 
     if (editingTransactionId) {
-        // Edit Mode: Update existing
         const index = transactions.findIndex(t => t.id === editingTransactionId);
         if (index !== -1) {
             transactions[index] = {
@@ -707,7 +1009,6 @@ function saveCurrentTransaction() {
         }
         editingTransactionId = null;
     } else {
-        // Create Mode: Add new
         const newTransaction = {
             id: Date.now().toString(),
             storeName: store,
@@ -720,19 +1021,15 @@ function saveCurrentTransaction() {
     }
 
     localStorage.setItem('receipt_transactions', JSON.stringify(transactions));
-    
-    // Reset state & Refresh dashboard
     resetScannerState();
     updateDashboard();
 }
 
-// Delete a transaction from local storage
 function deleteTransaction(id) {
     transactions = transactions.filter(t => t.id !== id);
     localStorage.setItem('receipt_transactions', JSON.stringify(transactions));
     showToast('データを削除しました。', 'info');
     
-    // Clear DAY filter if the deleted transaction was the last one on that day
     if (activeFilterDate) {
         const hasMoreOnDate = transactions.some(t => t.date === activeFilterDate);
         if (!hasMoreOnDate) activeFilterDate = null;
@@ -741,14 +1038,13 @@ function deleteTransaction(id) {
     updateDashboard();
 }
 
-// Load transaction history from localStorage
 function loadTransactions() {
     const saved = localStorage.getItem('receipt_transactions');
     if (saved) {
         try {
             transactions = JSON.parse(saved);
             
-            // DATA MIGRATION: Convert old transactions format (transaction-level category) to new format (item-level category)
+            // DATA MIGRATION: Convert old format
             transactions.forEach(t => {
                 if (t.category && (!t.items || t.items.some(item => !item.category))) {
                     if (!t.items || t.items.length === 0) {
@@ -761,7 +1057,6 @@ function loadTransactions() {
                     delete t.category;
                 }
             });
-            // Resave migrated data
             localStorage.setItem('receipt_transactions', JSON.stringify(transactions));
             
         } catch (e) {
@@ -771,31 +1066,34 @@ function loadTransactions() {
     }
 }
 
-// Update the dashboard statistics and history view
+// Update Dashboard View Tab
 function updateDashboard() {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth(); // 0-11
     
-    // Filter transactions to the currently selected month
+    // Filter transactions to selected month
     const monthlyTxns = transactions.filter(t => {
         const tDate = new Date(t.date);
         return tDate.getFullYear() === year && tDate.getMonth() === month;
     });
 
-    // 1. Update Stats Summaries for the Current Month
     const receiptCount = monthlyTxns.length;
-    receiptCountVal.innerText = `${receiptCount} 件`;
+    receiptCountVals.forEach(v => v.innerText = `${receiptCount} 件`);
     
     const monthlyTotalSum = monthlyTxns.reduce((acc, curr) => acc + curr.total, 0);
-    totalExpensesVal.innerText = `¥${monthlyTotalSum.toLocaleString()}`;
+    totalExpensesVals.forEach(v => v.innerText = `¥${monthlyTotalSum.toLocaleString()}`);
     
-    // Update Budget progress bar
-    updateBudgetProgressBar(monthlyTotalSum);
+    // Budget Calculations (Summed items budget vs actual monthly sum)
+    const activeBudgetCats = getActiveBudgetForMonth(currentMonth);
+    const overallBudget = Object.values(activeBudgetCats).reduce((acc, curr) => acc + curr, 0);
     
-    // 2. Render Calendar Grid
+    // Update budget bars on both dashboard/analytics instances
+    updateOverallBudgetBars(monthlyTotalSum, overallBudget);
+    
+    // Render Calendar
     renderCalendarGrid(monthlyTxns);
 
-    // 3. Filter history by Selected Month (and Day filter if active)
+    // Filter history list
     let filteredHistoryTxns = monthlyTxns;
     if (activeFilterDate) {
         filteredHistoryTxns = monthlyTxns.filter(t => t.date === activeFilterDate);
@@ -805,21 +1103,18 @@ function updateDashboard() {
         filterActiveBadge.style.display = 'none';
     }
 
-    // 4. Render History List
+    // Render History List UI
     if (filteredHistoryTxns.length === 0) {
         historyEmptyState.style.display = 'flex';
-        // Remove old list items
         const items = historyList.querySelectorAll('.history-item');
         items.forEach(el => el.remove());
     } else {
         historyEmptyState.style.display = 'none';
         
-        // Remove old history elements
         const oldItems = historyList.querySelectorAll('.history-item');
         oldItems.forEach(el => el.remove());
         
         filteredHistoryTxns.forEach(t => {
-            // Find categories present in this transaction to display as list badges
             const itemCategories = [...new Set(t.items.map(item => item.category || 'others'))];
             
             let badgesHtml = '';
@@ -851,9 +1146,8 @@ function updateDashboard() {
             historyList.appendChild(historyItem);
         });
         
-        // Attach delete event listeners
-        const deleteTxnBtns = historyList.querySelectorAll('.delete-txn-btn');
-        deleteTxnBtns.forEach(btn => {
+        // Bind events
+        historyList.querySelectorAll('.delete-txn-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const id = btn.getAttribute('data-id');
@@ -863,9 +1157,7 @@ function updateDashboard() {
             });
         });
 
-        // Attach edit event listeners
-        const editTxnBtns = historyList.querySelectorAll('.edit-txn-btn');
-        editTxnBtns.forEach(btn => {
+        historyList.querySelectorAll('.edit-txn-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const id = btn.getAttribute('data-id');
@@ -876,36 +1168,44 @@ function updateDashboard() {
         lucide.createIcons();
     }
     
-    // 5. Update Chart (uses item-level categories for active month)
-    updateChartData(monthlyTxns);
+    // Sync Category distribution charts
+    updateCategoryCharts(monthlyTxns);
 }
 
-// Update Budget Progress visual UI
-function updateBudgetProgressBar(monthlyTotalSum) {
-    const key = `budget_${getYearMonthString(currentMonth)}`;
-    const budget = parseInt(localStorage.getItem(key)) || 50000;
+// Update dashboard/analytics budget progress bar instances
+function updateOverallBudgetBars(monthlyTotalSum, overallBudget) {
+    const remaining = overallBudget - monthlyTotalSum;
+    const percent = overallBudget > 0 ? (monthlyTotalSum / overallBudget) * 100 : 0;
     
-    const remaining = budget - monthlyTotalSum;
-    const percent = budget > 0 ? (monthlyTotalSum / budget) * 100 : 0;
+    budgetPercentLabels.forEach(label => {
+        if (overallBudget > 0) {
+            label.innerText = `消化率: ${Math.round(percent)}% (¥${monthlyTotalSum.toLocaleString()} / ¥${overallBudget.toLocaleString()})`;
+        } else {
+            label.innerText = `消化率: 0% (¥${monthlyTotalSum.toLocaleString()} / 予算未設定)`;
+        }
+    });
     
-    budgetPercentLabel.innerText = `消化率: ${Math.round(percent)}% (¥${monthlyTotalSum.toLocaleString()} / ¥${budget.toLocaleString()})`;
+    budgetRemainingLabels.forEach(label => {
+        if (overallBudget === 0) {
+            label.innerText = "予算期間を設定してください";
+            label.style.color = "var(--text-muted)";
+        } else if (remaining >= 0) {
+            label.innerText = `残高: ¥${remaining.toLocaleString()}`;
+            label.style.color = 'var(--text-muted)';
+        } else {
+            label.innerText = `予算超過: ¥${Math.abs(remaining).toLocaleString()}`;
+            label.style.color = 'var(--danger)';
+        }
+    });
     
-    if (remaining >= 0) {
-        budgetRemainingLabel.innerText = `残高: ¥${remaining.toLocaleString()}`;
-        budgetRemainingLabel.style.color = 'var(--text-muted)';
-    } else {
-        budgetRemainingLabel.innerText = `予算超過: ¥${Math.abs(remaining).toLocaleString()}`;
-        budgetRemainingLabel.style.color = 'var(--danger)';
-    }
-    
-    budgetProgressBar.style.width = `${Math.min(100, percent)}%`;
-    
-    // Add warning color if budget is exceeded
-    if (percent > 100) {
-        budgetProgressBar.classList.add('over-budget');
-    } else {
-        budgetProgressBar.classList.remove('over-budget');
-    }
+    budgetProgressBars.forEach(bar => {
+        bar.style.width = `${Math.min(100, percent)}%`;
+        if (percent > 100) {
+            bar.classList.add('over-budget');
+        } else {
+            bar.classList.remove('over-budget');
+        }
+    });
 }
 
 // Dynamically generate calendar grid cells
@@ -915,21 +1215,23 @@ function renderCalendarGrid(monthlyTxns) {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
     
-    // First day of currentMonth
     const firstDay = new Date(year, month, 1);
     const startOffset = firstDay.getDay(); // 0 is Sunday, 6 is Saturday
     
-    // Total days in currentMonth
     const totalDays = new Date(year, month + 1, 0).getDate();
     
-    // Map transactions to dates: "YYYY-MM-DD" -> totalSpent
+    // Map transactions to dates and group them for popover detail extraction
     const spendMap = {};
+    const txnMap = {};
+    
     monthlyTxns.forEach(t => {
-        const dateStr = t.date; // YYYY-MM-DD
+        const dateStr = t.date;
         spendMap[dateStr] = (spendMap[dateStr] || 0) + t.total;
+        if (!txnMap[dateStr]) txnMap[dateStr] = [];
+        txnMap[dateStr].push(t);
     });
 
-    // Add empty padding cells for starting offset days
+    // Add empty cells for starting offset days
     for (let i = 0; i < startOffset; i++) {
         const emptyCell = document.createElement('div');
         emptyCell.className = 'calendar-day empty';
@@ -938,7 +1240,6 @@ function renderCalendarGrid(monthlyTxns) {
     
     const todayStr = new Date().toISOString().split('T')[0];
     
-    // Render actual day cells
     for (let d = 1; d <= totalDays; d++) {
         const dayCell = document.createElement('div');
         const dStr = String(d).padStart(2, '0');
@@ -954,7 +1255,6 @@ function renderCalendarGrid(monthlyTxns) {
         if (isFiltered) cellClass += ' active-filter';
         if (spent > 0) {
             cellClass += ' has-spend';
-            // Alert color if spent on a single day is very high (e.g. > 10,000 yen)
             if (spent >= 10000) {
                 cellClass += ' has-high-spend';
             }
@@ -970,82 +1270,240 @@ function renderCalendarGrid(monthlyTxns) {
             <span class="calendar-day-amount" title="${amountText}">${amountText}</span>
         `;
         
-        // Click event to filter dashboard list by day
+        // Single Date Details Modal popover on click
         dayCell.addEventListener('click', () => {
-            if (spent === 0 && !isFiltered) {
-                // Ignore click on empty spent days unless we are clearing filter
-                return;
-            }
+            const dayTxns = txnMap[dateStr] || [];
+            openDayModal(dateStr, spent, dayTxns);
             
-            if (activeFilterDate === dateStr) {
-                activeFilterDate = null; // Clear filter
-            } else {
-                activeFilterDate = dateStr; // Apply filter
+            // Apply dashboard filter state silently in background for sync
+            if (spent > 0) {
+                activeFilterDate = isFiltered ? null : dateStr;
+                updateDashboard();
             }
-            updateDashboard();
         });
         
         calendarGrid.appendChild(dayCell);
     }
 }
 
-// Chart.js initialization
-function initChart() {
-    const ctx = document.getElementById('categoryChart').getContext('2d');
+// Update the Detail Analytics page
+function updateAnalyticsView() {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const lastDay = new Date(year, month + 1, 0).getDate();
     
-    categoryChart = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: Object.values(categoryMeta).map(m => m.label),
-            datasets: [{
-                data: [0, 0, 0, 0, 0],
-                backgroundColor: Object.values(categoryMeta).map(m => m.color),
-                borderWidth: 1,
-                borderColor: '#1F2937'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'bottom',
-                    labels: {
-                        color: '#9CA3AF',
-                        font: {
-                            family: 'Plus Jakarta Sans',
-                            size: 11
-                        },
-                        boxWidth: 12
-                    }
+    const monthlyTxns = transactions.filter(t => {
+        const tDate = new Date(t.date);
+        return tDate.getFullYear() === year && tDate.getMonth() === month;
+    });
+
+    // 1. Draw/Update Line Chart (Daily Spending Trend)
+    const dailySpend = Array(lastDay).fill(0);
+    monthlyTxns.forEach(t => {
+        const dateObj = new Date(t.date);
+        const dateIndex = dateObj.getDate() - 1; // 0-indexed day
+        if (dateIndex >= 0 && dateIndex < lastDay) {
+            dailySpend[dateIndex] += t.total;
+        }
+    });
+
+    const labels = Array.from({ length: lastDay }, (_, i) => `${i + 1}日`);
+    
+    if (dailyTrendChart) {
+        dailyTrendChart.data.labels = labels;
+        dailyTrendChart.data.datasets[0].data = dailySpend;
+        dailyTrendChart.update();
+    } else {
+        const ctx = document.getElementById('dailyTrendChart').getContext('2d');
+        dailyTrendChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '支出推移',
+                    data: dailySpend,
+                    borderColor: '#6366F1',
+                    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                    fill: true,
+                    tension: 0.3,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
                 },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            return `${context.label}: ¥${context.raw.toLocaleString()}`;
-                        }
+                scales: {
+                    y: {
+                        ticks: { color: '#9CA3AF' },
+                        grid: { color: 'rgba(255,255,255,0.05)' }
+                    },
+                    x: {
+                        ticks: { color: '#9CA3AF', maxRotation: 0 },
+                        grid: { display: false }
                     }
                 }
-            },
-            cutout: '65%'
+            }
+        });
+    }
+
+    // 2. Render Category Budgets vs Spendings Table
+    const activeBudgetCats = getActiveBudgetForMonth(currentMonth);
+    const catSpends = { food: 0, utilities: 0, shopping: 0, entertainment: 0, others: 0 };
+    
+    monthlyTxns.forEach(t => {
+        t.items.forEach(item => {
+            const cat = item.category || 'others';
+            if (catSpends.hasOwnProperty(cat)) {
+                catSpends[cat] += item.price;
+            } else {
+                catSpends.others += item.price;
+            }
+        });
+    });
+
+    const tableBody = document.getElementById('categoryAnalysisTableBody');
+    tableBody.innerHTML = '';
+
+    Object.keys(categoryMeta).forEach(key => {
+        const meta = categoryMeta[key];
+        const spend = catSpends[key];
+        const budget = activeBudgetCats[key] || 0;
+        const percent = budget > 0 ? (spend / budget) * 100 : 0;
+        const remaining = budget - spend;
+        
+        let progressColor = 'background: var(--primary);';
+        if (percent > 100) {
+            progressColor = 'background: linear-gradient(90deg, var(--danger) 0%, #F59E0B 100%);';
+        } else if (percent > 80) {
+            progressColor = 'background: #F59E0B;';
         }
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><span class="badge ${meta.class}">${meta.label}</span></td>
+            <td style="font-weight: 700;">¥${spend.toLocaleString()}</td>
+            <td style="color: var(--text-muted);">${budget > 0 ? '¥' + budget.toLocaleString() : '未設定'}</td>
+            <td>
+                <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:4px;">
+                    <span>${Math.round(percent)}%</span>
+                    <span style="color: ${remaining < 0 ? 'var(--danger)' : 'var(--text-muted)'};">
+                        ${remaining >= 0 ? '残: ¥' + remaining.toLocaleString() : '超過: ¥' + Math.abs(remaining).toLocaleString()}
+                    </span>
+                </div>
+                <div style="background: rgba(255,255,255,0.05); height: 6px; border-radius: 3px; overflow: hidden; width: 100%;">
+                    <div style="height: 100%; width: ${Math.min(100, percent)}%; ${progressColor} transition: width 0.3s ease;"></div>
+                </div>
+            </td>
+        `;
+        tableBody.appendChild(tr);
+    });
+
+    // 3. Render Top 5 Expensive Items Purchased
+    const allItems = [];
+    monthlyTxns.forEach(t => {
+        t.items.forEach(item => {
+            allItems.push({
+                name: item.name,
+                price: item.price,
+                category: item.category || 'others',
+                store: t.storeName,
+                date: t.date
+            });
+        });
+    });
+
+    // Sort descending by item price
+    allItems.sort((a, b) => b.price - a.price);
+    const top5 = allItems.slice(0, 5);
+
+    const rankingContainer = document.getElementById('topExpensiveItemsList');
+    rankingContainer.innerHTML = '';
+    
+    if (top5.length === 0) {
+        rankingContainer.innerHTML = `<p style="text-align:center; padding: 20px; color: var(--text-muted);">データがありません。</p>`;
+    } else {
+        top5.forEach((item, index) => {
+            const meta = categoryMeta[item.category] || categoryMeta.others;
+            const rankCard = document.createElement('div');
+            rankCard.className = 'ranking-card';
+            rankCard.innerHTML = `
+                <div class="ranking-num">${index + 1}</div>
+                <div class="ranking-details">
+                    <div style="font-weight:600; font-size:13px;">${item.name}</div>
+                    <div style="font-size:11px; color:var(--text-muted); display:flex; gap:8px;">
+                        <span>${item.store}</span>
+                        <span>(${item.date})</span>
+                    </div>
+                </div>
+                <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
+                    <strong style="color:#FFF; font-size:14px;">¥${item.price.toLocaleString()}</strong>
+                    <span class="badge ${meta.class}">${meta.label}</span>
+                </div>
+            `;
+            rankingContainer.appendChild(rankCard);
+        });
+    }
+
+    // Sync distribution doughnuts on analytics view
+    updateCategoryCharts(monthlyTxns);
+}
+
+// Chart.js Category doughnut init (Runs for all categoryChartCanvas classes)
+function initCharts() {
+    const canvases = document.querySelectorAll('.categoryChartCanvas');
+    
+    categoryCharts = []; // Reset chart array
+    
+    canvases.forEach(canvas => {
+        const ctx = canvas.getContext('2d');
+        const chart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: Object.values(categoryMeta).map(m => m.label),
+                datasets: [{
+                    data: [0, 0, 0, 0, 0],
+                    backgroundColor: Object.values(categoryMeta).map(m => m.color),
+                    borderWidth: 1,
+                    borderColor: '#1F2937'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        labels: {
+                            color: '#9CA3AF',
+                            font: { family: 'Plus Jakarta Sans', size: 10 },
+                            boxWidth: 8
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `${context.label}: ¥${context.raw.toLocaleString()}`;
+                            }
+                        }
+                    }
+                },
+                cutout: '65%'
+            }
+        });
+        categoryCharts.push(chart);
     });
 }
 
-// Re-calculate category totals (aggregating each item's price) and redraw chart
-function updateChartData(monthlyTxns = []) {
-    if (!categoryChart) return;
+// Sync category data across all categoryCharts
+function updateCategoryCharts(monthlyTxns = []) {
+    if (categoryCharts.length === 0) return;
     
-    const catSums = {
-        food: 0,
-        utilities: 0,
-        shopping: 0,
-        entertainment: 0,
-        others: 0
-    };
+    const catSums = { food: 0, utilities: 0, shopping: 0, entertainment: 0, others: 0 };
     
-    // Accumulate each individual item's price into its respective category
     monthlyTxns.forEach(t => {
         if (t.items && t.items.length > 0) {
             t.items.forEach(item => {
@@ -1057,7 +1515,6 @@ function updateChartData(monthlyTxns = []) {
                 }
             });
         } else {
-            // Fallback for itemless transaction
             catSums.others += t.total;
         }
     });
@@ -1072,28 +1529,28 @@ function updateChartData(monthlyTxns = []) {
     
     const hasData = dataset.some(val => val > 0);
     
-    if (!hasData) {
-        categoryChart.data.datasets[0].data = [1];
-        categoryChart.data.datasets[0].backgroundColor = ['#1F2937'];
-        categoryChart.data.labels = ['データなし'];
-    } else {
-        categoryChart.data.datasets[0].data = dataset;
-        categoryChart.data.datasets[0].backgroundColor = Object.values(categoryMeta).map(m => m.color);
-        categoryChart.data.labels = Object.values(categoryMeta).map(m => m.label);
-    }
-    
-    categoryChart.update();
+    categoryCharts.forEach(chart => {
+        if (!hasData) {
+            chart.data.datasets[0].data = [1];
+            chart.data.datasets[0].backgroundColor = ['#1F2937'];
+            chart.data.labels = ['データなし'];
+        } else {
+            chart.data.datasets[0].data = dataset;
+            chart.data.datasets[0].backgroundColor = Object.values(categoryMeta).map(m => m.color);
+            chart.data.labels = Object.values(categoryMeta).map(m => m.label);
+        }
+        chart.update();
+    });
 }
 
 // Export budget data as CSV
 function exportToCsv() {
     if (transactions.length === 0) {
-        showToast('エクスポートするデータがありません。', 'error');
+        showToast('エ保存された家計簿データがありません。', 'error');
         return;
     }
 
-    // CSV Headers (With UTF-8 BOM for Japanese Excel compatibility)
-    let csvContent = "\uFEFF";
+    let csvContent = "\uFEFF"; // UTF-8 BOM
     csvContent += "ID,店舗名,日付,品目名,カテゴリ,価格\n";
 
     transactions.forEach(t => {
@@ -1110,13 +1567,11 @@ function exportToCsv() {
         }
     });
 
-    // Create downloadable link
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
     
-    // File name: receipt_data_YYYY_MM_DD.csv
     const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '_');
     link.setAttribute("download", `receipt_data_${dateStr}.csv`);
     link.style.visibility = 'hidden';
@@ -1126,4 +1581,3 @@ function exportToCsv() {
     
     showToast('CSVデータを出力しました！', 'success');
 }
-
