@@ -918,14 +918,6 @@ function renderRecentHistory(monthlyTxns) {
     } else {
         if (filterBadge) filterBadge.classList.remove('active');
     }
-}
-
-function clearDateFilter(e) {
-    if (e) e.stopPropagation();
-    activeFilterDate = null;
-    updateDashboard();
-}
-window.clearDateFilter = clearDateFilter;
     
     // Sort newest date first
     filtered.sort((a, b) => b.date.localeCompare(a.date));
@@ -977,6 +969,13 @@ window.clearDateFilter = clearDateFilter;
         });
     }
 }
+
+function clearDateFilter(e) {
+    if (e) e.stopPropagation();
+    activeFilterDate = null;
+    updateDashboard();
+}
+window.clearDateFilter = clearDateFilter;
 
 // 16. Transaction Actions (CRUD)
 window.editTransactionItem = function(id) {
