@@ -383,9 +383,9 @@ header {
 
 .form-group-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-bottom: 20px;
+  grid-template-columns: 2fr 1fr 1fr 1.2fr;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
 .form-group {
@@ -398,6 +398,10 @@ header {
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--text-muted);
+}
+
+.mobile-field-label {
+  display: none;
 }
 
 .form-section-label {
@@ -417,7 +421,7 @@ textarea {
   background: rgba(15, 20, 35, 0.7);
   border: 1px solid var(--card-border);
   border-radius: var(--radius-sm);
-  padding: 10px 14px;
+  padding: 8px 12px;
   outline: none;
   transition: var(--transition);
   width: 100%;
@@ -534,6 +538,9 @@ select {
 }
 
 .btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 32px;
   height: 32px;
   padding: 0;
@@ -541,11 +548,25 @@ select {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--card-border);
   color: var(--text-muted);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.btn-icon svg {
+  width: 15px;
+  height: 15px;
 }
 
 .btn-icon:hover {
   border-color: var(--primary);
   color: var(--primary);
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.item-row .btn-icon:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.1);
 }
 
 .btn-icon-only {
@@ -1860,12 +1881,21 @@ select {
     grid-column: 1 / span 2;
   }
 
-  .item-row .item-price {
+  .item-row .item-price-field {
     grid-column: 1;
   }
 
-  .item-row .item-discount {
+  .item-row .item-discount-field {
     grid-column: 2;
+  }
+
+  .mobile-field-label {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    margin-bottom: 4px;
+    text-align: left;
   }
   
   .item-row button {
@@ -1885,8 +1915,20 @@ select {
   }
 
   .form-group-grid {
-    grid-template-columns: 1fr;
-    gap: 12px;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .form-group-grid .form-group:nth-child(1) {
+    grid-column: span 2;
+  }
+  .form-group-grid .form-group:nth-child(2) {
+    grid-column: span 1;
+  }
+  .form-group-grid .form-group:nth-child(3) {
+    grid-column: span 1;
+  }
+  .form-group-grid .form-group:nth-child(4) {
+    grid-column: span 2;
   }
 
   .budget-form-grid {

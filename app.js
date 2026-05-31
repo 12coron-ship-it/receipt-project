@@ -290,6 +290,8 @@ function initMonthSelector() {
     qsa('.prevMonthBtn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const viewId = e.currentTarget.closest('.view-panel')?.id;
+            // 31日等がある月にsetMonthすると意図せず翌々月に繰り上がるバグを防ぐため、日を一度1日に固定する
+            currentMonth.setDate(1);
             if (viewId === 'analyticsView') {
                 if (analyticsPeriod === 'quarter') {
                     // Go back 1 quarter (3 months)
@@ -313,6 +315,8 @@ function initMonthSelector() {
     qsa('.nextMonthBtn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const viewId = e.currentTarget.closest('.view-panel')?.id;
+            // 31日等がある月にsetMonthすると意図せず翌々月に繰り上がるバグを防ぐため、日を一度1日に固定する
+            currentMonth.setDate(1);
             if (viewId === 'analyticsView') {
                 if (analyticsPeriod === 'quarter') {
                     // Go forward 1 quarter (3 months)
@@ -1064,8 +1068,14 @@ function addEditorItemRow(name = '', price = 0, discount = 0, category = 'others
     row.innerHTML = `
         <input type="text" class="item-name" placeholder="品名" value="${name}">
         <select class="item-category">${selectOptions}</select>
-        <input type="number" class="item-price" placeholder="単価" value="${price}" min="0">
-        <input type="number" class="item-discount" placeholder="割引" value="${discount}" min="0">
+        <div class="item-price-field">
+            <label class="mobile-field-label">単価 (¥)</label>
+            <input type="number" class="item-price" placeholder="単価" value="${price}" min="0">
+        </div>
+        <div class="item-discount-field">
+            <label class="mobile-field-label">割引 (¥)</label>
+            <input type="number" class="item-discount" placeholder="割引" value="${discount}" min="0">
+        </div>
         <button class="btn-icon" style="color:var(--text-muted);" title="削除"><i data-lucide="trash-2"></i></button>
     `;
     
@@ -1533,8 +1543,27 @@ function initCharts() {
                 cutout: '70%',
                 plugins: {
                     legend: {
-                        position: 'right',
-                        labels: { boxWidth: 10, color: '#9CA3AF', font: { size: 9, family: 'Plus Jakarta Sans' } }
+                        position: 'bottom',
+                        labels: {
+                            boxWidth: 8,
+                            color: '#9CA3AF',
+                            font: { size: 9, family: 'Plus Jakarta Sans' },
+                            padding: 8
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                if (context.label === 'データなし') return ' データなし';
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const value = context.raw;
+                                const pct = ((value / total) * 100).toFixed(1);
+                                // 凡例のテキストをパースしてカテゴリ名を取り出す
+                                const labelParts = context.label.split(':');
+                                const catName = labelParts[0] || context.label;
+                                return ` ${catName}: ¥${value.toLocaleString()} (${pct}%)`;
+                            }
+                        }
                     }
                 }
             }
@@ -1565,7 +1594,8 @@ function updateShareCharts(monthlyTxns) {
     } else {
         Object.entries(categoryMeta).forEach(([key, meta]) => {
             if (spends[key] > 0) {
-                labels.push(meta.label);
+                const pct = ((spends[key] / total) * 100).toFixed(1);
+                labels.push(`${meta.label}: ¥${spends[key].toLocaleString()} (${pct}%)`);
                 data.push(spends[key]);
                 colors.push(meta.color);
             }
@@ -1889,10 +1919,10 @@ function renderBudgetsList() {
         card.className = 'budget-period-card';
         card.innerHTML = `
             <div class="budget-period-header" style="margin-bottom:0;">
-                <div>
-                    <div class="budget-period-title">
-                        <span class="badge ${meta.class}" style="margin-right:6px;">${meta.label}</span>
-                        ${startLabel} 〜 ${endLabel}
+                <div style="width: calc(100% - 80px);">
+                    <div class="budget-period-title" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px;">
+                        <span class="badge ${meta.class}" style="flex-shrink: 0;">${meta.label}</span>
+                        <span style="white-space: nowrap; font-size: 0.85rem; font-weight: 500; color: var(--text-muted);">${startLabel} 〜 ${endLabel}</span>
                     </div>
                     <span style="font-size:0.9rem; font-weight:700; color:var(--accent);">予算: ¥${b.amount.toLocaleString()} / 月</span>
                 </div>
