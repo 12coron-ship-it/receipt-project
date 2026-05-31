@@ -232,6 +232,9 @@ function closeModal(modalId) {
     if (modal) modal.classList.remove('active');
 }
 
+window.openModal = openModal;
+window.closeModal = closeModal;
+
 // 8. Setup Subpanel states inside Dashboard
 function showDashboardSubpanel(activePanelId) {
     const panels = ['dropzone', 'scannerContainer', 'editorPanel', 'bulkProgressContainer'];
@@ -512,20 +515,21 @@ function buildRecurringCategorySelect() {
 
 function getTransactionItemsWithTax(t) {
     let itemBaseSum = 0;
-    (t.items || []).forEach(item => {
+    const itemsList = t.items || [];
+    itemsList.forEach(item => {
         const netPrice = item.price - (item.discount || 0);
         itemBaseSum += netPrice;
     });
     
     const tax = t.tax || 0;
     
-    return (t.items || []).map(item => {
+    const resolvedItems = itemsList.map(item => {
         const netPrice = item.price - (item.discount || 0);
         let distributedTax = 0;
         if (itemBaseSum > 0) {
             distributedTax = (netPrice / itemBaseSum) * tax;
-        } else if ((t.items || []).length > 0) {
-            distributedTax = tax / (t.items || []).length;
+        } else if (itemsList.length > 0) {
+            distributedTax = tax / itemsList.length;
         }
         
         return {
@@ -534,6 +538,17 @@ function getTransactionItemsWithTax(t) {
             category: item.category || 'others'
         };
     });
+    
+    // Adjust rounding difference on the last item to match transaction total
+    if (resolvedItems.length > 0) {
+        const itemsSum = resolvedItems.reduce((s, item) => s + item.price, 0);
+        const diff = t.total - itemsSum;
+        if (diff !== 0) {
+            resolvedItems[resolvedItems.length - 1].price += diff;
+        }
+    }
+    
+    return resolvedItems;
 }
 
 // 12. Dynamic transaction resolved list (normal + recurring)
@@ -557,10 +572,16 @@ function getMonthlyResolvedTransactions(year, month) {
         const rEndMonth = r.endDate ? r.endDate.substring(0, 7) : '9999-12';
         
         if (targetMonthStr >= rStartMonth && targetMonthStr <= rEndMonth) {
+            // Distribute recurring virtual transactions to their actual day of start date
+            const startDay = parseInt(r.startDate.substring(8, 10)) || 1;
+            const lastDayOfMonth = new Date(year, month, 0).getDate();
+            const actualDay = Math.min(startDay, lastDayOfMonth);
+            const billingDateStr = `${targetMonthStr}-${String(actualDay).padStart(2, '0')}`;
+            
             virtualTxns.push({
                 id: `rec-${r.id}-${targetMonthStr}`,
                 storeName: `[固定費] ${r.name}`,
-                date: `${targetMonthStr}-01`,
+                date: billingDateStr,
                 total: r.amount,
                 items: [{ name: r.name, price: r.amount, category: r.category }],
                 isRecurring: true,
@@ -887,12 +908,20 @@ function renderRecentHistory(monthlyTxns) {
     if (activeFilterDate) {
         filtered = monthlyTxns.filter(t => t.date === activeFilterDate);
         if (filterBadge) {
-            filterBadge.textContent = `${activeFilterDate.split('-')[2]}日の記録`;
+            filterBadge.innerHTML = `${activeFilterDate.split('-')[2]}日の記録 <span style="cursor:pointer;margin-left:6px;font-weight:700;opacity:0.8;" onclick="clearDateFilter(event)" title="フィルター解除">&times;</span>`;
             filterBadge.classList.add('active');
         }
     } else {
         if (filterBadge) filterBadge.classList.remove('active');
     }
+}
+
+function clearDateFilter(e) {
+    if (e) e.stopPropagation();
+    activeFilterDate = null;
+    updateDashboard();
+}
+window.clearDateFilter = clearDateFilter;
     
     // Sort newest date first
     filtered.sort((a, b) => b.date.localeCompare(a.date));
@@ -1128,6 +1157,7 @@ function saveCurrentTransaction() {
     saveData('transactions');
     showDashboardSubpanel('dropzone');
     updateDashboard();
+    updateAnalyticsView();
 }
 
 // 18. Receipts Batch / Single file upload process
@@ -1834,6 +1864,7 @@ function saveBudgetPeriodConfig() {
     resetBudgetConfigForm();
     renderBudgetsList();
     updateDashboard();
+    updateBudgetTrendChart();
 }
 
 function renderBudgetsList() {
@@ -1899,6 +1930,7 @@ window.deleteBudgetPeriod = function(id) {
     saveData('budgets');
     renderBudgetsList();
     updateDashboard();
+    updateBudgetTrendChart();
     showToast('予算設定を削除しました。', 'info');
 };
 
@@ -1945,6 +1977,8 @@ function saveRecurringExpenseConfig() {
     saveData('recurring');
     resetRecurringConfigForm();
     renderRecurringList();
+    updateDashboard();
+    updateBudgetTrendChart();
 }
 
 function renderRecurringList() {
@@ -2003,6 +2037,8 @@ window.deleteRecurringExpense = function(id) {
     recurringExpenses = recurringExpenses.filter(r => r.id !== id);
     saveData('recurring');
     renderRecurringList();
+    updateDashboard();
+    updateBudgetTrendChart();
     showToast('固定費設定を削除しました。', 'info');
 };
 
@@ -2147,6 +2183,7 @@ function setupEventListeners() {
     if (el('closeSettingsBtn')) el('closeSettingsBtn').addEventListener('click', () => closeModal('settingsModal'));
     if (el('saveApiKeyBtn')) el('saveApiKeyBtn').addEventListener('click', saveApiKey);
     if (el('clearApiKeyBtn')) el('clearApiKeyBtn').addEventListener('click', clearApiKey);
+    if (el('resetDbBtn')) el('resetDbBtn').addEventListener('click', resetDatabase);
     
     // 2. CSV Backups buttons
     if (el('exportCsvBtn')) el('exportCsvBtn').addEventListener('click', exportCSV);
@@ -2319,4 +2356,31 @@ function updateBudgetTrendChart() {
             }
         }
     });
+}
+
+function resetDatabase() {
+    if (!confirm("すべての家計簿データ、予算、固定費設定を完全に消去します。この操作は取り消せません。本当によろしいですか？")) {
+        return;
+    }
+    localStorage.removeItem('receipt_transactions');
+    localStorage.removeItem('receipt_budgets');
+    localStorage.removeItem('receipt_recurring');
+    
+    transactions = [];
+    budgets = [];
+    recurringExpenses = [];
+    
+    // 空の状態でローカルストレージを同期
+    saveData('transactions');
+    saveData('budgets');
+    saveData('recurring');
+    
+    // UI の更新
+    updateDashboard();
+    updateBudgetTrendChart();
+    updateAnalyticsView();
+    
+    // API設定画面を含む設定モーダルを閉じる
+    closeModal('settingsModal');
+    showToast("データベースを初期化しました。", "success");
 }
