@@ -37,6 +37,7 @@ let budgets = [];
 let recurringExpenses = [];
 let categoryDoughnutCharts = [];
 let trendChartInstance = null;
+let budgetTrendChartInstance = null;
 
 function getJSTCurrentDate() {
     const now = new Date();
@@ -92,6 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Render initial view
         updateDashboard();
+        updateBudgetTrendChart();
         
         if (typeof lucide !== 'undefined') {
             lucide.createIcons();
@@ -270,6 +272,7 @@ function initTabNavigation() {
             } else if (selectedTab === 'budgets') {
                 renderBudgetsList();
                 renderRecurringList();
+                updateBudgetTrendChart();
             } else if (selectedTab === 'dashboard') {
                 updateDashboard();
             }
@@ -338,19 +341,17 @@ function initMonthSelector() {
     if (el('pickerPrevYearBtn')) {
         el('pickerPrevYearBtn').addEventListener('click', () => {
             pickerSelectedYear--;
-            updateCustomPickerYearLabel();
             const activeView = qs('.view-panel.active');
             const viewId = activeView ? activeView.id : 'dashboardView';
-            openCustomMonthPicker(viewId);
+            renderCustomMonthPicker(viewId);
         });
     }
     if (el('pickerNextYearBtn')) {
         el('pickerNextYearBtn').addEventListener('click', () => {
             pickerSelectedYear++;
-            updateCustomPickerYearLabel();
             const activeView = qs('.view-panel.active');
             const viewId = activeView ? activeView.id : 'dashboardView';
-            openCustomMonthPicker(viewId);
+            renderCustomMonthPicker(viewId);
         });
     }
 
@@ -383,6 +384,11 @@ function updateMonthLabel() {
 
 function openCustomMonthPicker(viewId) {
     pickerSelectedYear = currentMonth.getFullYear();
+    renderCustomMonthPicker(viewId);
+    openModal('monthPickerModal');
+}
+
+function renderCustomMonthPicker(viewId) {
     updateCustomPickerYearLabel();
     
     const grid = qs('#monthPickerModal .month-picker-grid');
@@ -461,8 +467,6 @@ function openCustomMonthPicker(viewId) {
             yearSelector.style.display = 'flex';
         }
     }
-    
-    openModal('monthPickerModal');
 }
 
 function updateCustomPickerYearLabel() {
@@ -477,6 +481,7 @@ function refreshCurrentTabState() {
     if (activeView) {
         if (activeView.id === 'dashboardView') updateDashboard();
         if (activeView.id === 'analyticsView') updateAnalyticsView();
+        if (activeView.id === 'budgetsView') updateBudgetTrendChart();
     }
 }
 
@@ -507,20 +512,20 @@ function buildRecurringCategorySelect() {
 
 function getTransactionItemsWithTax(t) {
     let itemBaseSum = 0;
-    t.items.forEach(item => {
+    (t.items || []).forEach(item => {
         const netPrice = item.price - (item.discount || 0);
         itemBaseSum += netPrice;
     });
     
     const tax = t.tax || 0;
     
-    return t.items.map(item => {
+    return (t.items || []).map(item => {
         const netPrice = item.price - (item.discount || 0);
         let distributedTax = 0;
         if (itemBaseSum > 0) {
             distributedTax = (netPrice / itemBaseSum) * tax;
-        } else if (t.items.length > 0) {
-            distributedTax = tax / t.items.length;
+        } else if ((t.items || []).length > 0) {
+            distributedTax = tax / (t.items || []).length;
         }
         
         return {
@@ -682,7 +687,7 @@ function renderCategoryBudgetList(monthlyTxns, activeBudget) {
     const spends = {};
     Object.keys(categoryMeta).forEach(k => spends[k] = 0);
     monthlyTxns.forEach(t => {
-        t.items.forEach(item => {
+        (t.items || []).forEach(item => {
             const cat = item.category || 'others';
             if (spends[cat] !== undefined) spends[cat] += item.price;
             else spends['others'] += item.price;
@@ -761,6 +766,8 @@ function renderCalendar(monthlyTxns) {
         
         const cell = document.createElement('div');
         cell.className = 'calendar-day';
+        cell.setAttribute('data-date', dateStr);
+        
         if (dateStr === todayStr) cell.classList.add('today');
         if (dateStr === activeFilterDate) cell.classList.add('active-filter');
         
@@ -779,13 +786,6 @@ function renderCalendar(monthlyTxns) {
             ${recurringDot}
             <span class="calendar-day-amount">${amountText}</span>
         `;
-        
-        cell.addEventListener('click', () => {
-            activeFilterDate = dateStr;
-            openDayDetailsModal(dateStr, dayTotal, dayTxns);
-            renderCalendar(monthlyTxns);
-            renderRecentHistory(monthlyTxns);
-        });
         
         grid.appendChild(cell);
     }
@@ -815,7 +815,7 @@ function openDayDetailsModal(dateStr, sum, dayTxns) {
                 
                 let recurText = t.isRecurring ? ' <span class="badge" style="background:rgba(168,85,247,0.15);color:#A855F7;padding:1px 6px;margin-left:6px;">固定</span>' : '';
                 
-                let subItemsHtml = t.items.map(item => {
+                let subItemsHtml = (t.items || []).map(item => {
                     const meta = categoryMeta[item.category] || categoryMeta.others;
                     return `
                         <div class="day-sub-item">
@@ -2222,5 +2222,101 @@ function setupEventListeners() {
             analyticsPeriod = e.currentTarget.getAttribute('data-period');
             updateAnalyticsView();
         });
+    });
+
+    // 11. Calendar Event Delegation
+    const calendarGrid = qs('.calendarGrid');
+    if (calendarGrid) {
+        calendarGrid.addEventListener('click', (e) => {
+            const cell = e.target.closest('.calendar-day');
+            if (cell && !cell.classList.contains('empty')) {
+                const dateStr = cell.getAttribute('data-date');
+                if (!dateStr) return;
+                
+                activeFilterDate = dateStr;
+                
+                // Fetch the transactions matching this day
+                const year = currentMonth.getFullYear();
+                const month = currentMonth.getMonth() + 1;
+                const monthlyTxns = getMonthlyResolvedTransactions(year, month);
+                const dayTxns = monthlyTxns.filter(t => t.date === dateStr);
+                const dayTotal = dayTxns.reduce((sum, t) => sum + t.total, 0);
+                
+                openDayDetailsModal(dateStr, dayTotal, dayTxns);
+                renderCalendar(monthlyTxns);
+                renderRecentHistory(monthlyTxns);
+            }
+        });
+    }
+}
+
+// 26. Stacked Bar Chart for monthly budget composition trend
+function updateBudgetTrendChart() {
+    const canvas = el('budgetTrendChart');
+    if (!canvas) return;
+    
+    const year = currentMonth.getFullYear();
+    const labels = [];
+    const monthsData = [];
+    
+    // Annual range (January to December)
+    for (let m = 0; m < 12; m++) {
+        labels.push(`${m + 1}月`);
+        monthsData.push(new Date(year, m, 15));
+    }
+    
+    const datasets = [];
+    const catKeys = Object.keys(categoryMeta);
+    catKeys.forEach(k => {
+        datasets.push({
+            label: categoryMeta[k].label,
+            backgroundColor: categoryMeta[k].color,
+            borderColor: categoryMeta[k].color,
+            borderWidth: 0,
+            data: new Array(12).fill(0),
+            stack: 'budget-stack'
+        });
+    });
+    
+    // Retrieve budget rule data for each month
+    monthsData.forEach((monthDate, monthIdx) => {
+        const activeBudget = getActiveBudgetForMonth(monthDate);
+        Object.entries(activeBudget).forEach(([cat, val]) => {
+            const catIdx = catKeys.indexOf(cat);
+            if (catIdx > -1) {
+                datasets[catIdx].data[monthIdx] = val;
+            }
+        });
+    });
+    
+    const ctx = canvas.getContext('2d');
+    if (budgetTrendChartInstance) {
+        budgetTrendChartInstance.destroy();
+    }
+    
+    budgetTrendChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: labels, datasets: datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: { stacked: true, grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#9CA3AF', font: { size: 9 } } },
+                y: { stacked: true, grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#9CA3AF', font: { size: 9 } }, beginAtZero: true }
+            },
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: { boxWidth: 10, color: '#9CA3AF', font: { size: 9, family: 'Plus Jakarta Sans' } }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.raw === 0 ? null : `${context.dataset.label}: ¥${context.raw.toLocaleString()}`;
+                        }
+                    }
+                }
+            }
+        }
     });
 }

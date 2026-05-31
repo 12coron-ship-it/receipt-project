@@ -231,7 +231,7 @@ header {
    ---------------------------------------------------------- */
 .upload-card {
   border: 2px dashed var(--card-border);
-  padding: 48px 24px;
+  padding: 20px 16px;
   text-align: center;
   cursor: pointer;
 }
@@ -242,22 +242,22 @@ header {
 }
 
 .upload-icon {
-  font-size: 3rem;
+  font-size: 2rem;
   color: var(--primary);
-  margin-bottom: 16px;
+  margin-bottom: 8px;
   display: inline-block;
   animation: float 3s ease-in-out infinite;
 }
 
 .upload-card h3 {
   font-family: var(--font-heading);
-  font-size: 1.2rem;
+  font-size: 1rem;
   font-weight: 600;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .upload-card p {
-  font-size: 0.85rem;
+  font-size: 0.76rem;
   color: var(--text-muted);
 }
 
