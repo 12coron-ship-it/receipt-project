@@ -14,9 +14,14 @@
 <div class="container">
   <!-- HEADER -->
   <header>
-    <div class="logo" style="display:flex; align-items:center; gap:12px; width:100%;">
-      <i data-lucide="receipt"></i> Smart<span>Receipt</span>
-      <div id="apiKeyStatus" class="api-key-badge disconnected" style="font-size:0.74rem; padding: 4px 10px; margin-left:8px;"><i data-lucide="info"></i> デモモード</div>
+    <div class="logo" style="display:flex; align-items:center; gap:12px; width:100%; justify-content:space-between; flex-wrap:wrap;">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <i data-lucide="receipt"></i> Smart<span>Receipt</span>
+        <div id="apiKeyStatus" class="api-key-badge disconnected" style="font-size:0.74rem; padding: 4px 10px; margin-left:8px;"><i data-lucide="info"></i> デモモード</div>
+      </div>
+      <button id="themeToggleBtn" class="btn btn-secondary btn-icon" title="テーマ切り替え" style="margin-left:auto;">
+        <i data-lucide="sun"></i>
+      </button>
     </div>
   </header>
 
@@ -263,7 +268,13 @@
     
     <!-- Stacked Bar Chart for Budget Composition Trend -->
     <div class="glass-panel" style="padding:24px; margin-bottom:40px;">
-      <h3 class="panel-title-sub"><i data-lucide="trending-up" style="color:var(--accent);"></i> 予算構成の月別推移 (年間)</h3>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px;">
+        <h3 class="panel-title-sub" style="margin-bottom:0;"><i data-lucide="trending-up" style="color:var(--accent);"></i> 予算構成の月別推移 (12ヶ月分)</h3>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <label for="budgetTrendStartMonth" style="font-size:0.78rem; color:var(--text-muted); font-weight:600; white-space:nowrap;">開始年月:</label>
+          <input type="month" id="budgetTrendStartMonth" style="padding:6px 12px; width:160px; font-size:0.85rem;">
+        </div>
+      </div>
       <div class="trend-chart-wrapper" style="position:relative; height:280px; width:100%;">
         <canvas id="budgetTrendChart"></canvas>
       </div>

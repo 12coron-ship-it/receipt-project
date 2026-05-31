@@ -11,32 +11,73 @@
   --font-heading: 'Outfit', sans-serif;
   --font-body: 'Plus Jakarta Sans', sans-serif;
 
-  --bg-main: #0B0F19;
-  --bg-gradient: radial-gradient(circle at 50% 0%, #1D243F 0%, #0B0F19 100%);
+  --bg-main: #04060c;
+  --bg-gradient: radial-gradient(circle at 50% 0%, #101633 0%, #060917 50%, #03050c 100%);
 
-  --card-bg: rgba(22, 28, 45, 0.45);
-  --card-border: rgba(255, 255, 255, 0.08);
-  --card-border-glow: rgba(99, 102, 241, 0.25);
+  --card-bg: rgba(11, 15, 30, 0.55);
+  --card-border: rgba(255, 255, 255, 0.05);
+  --card-border-glow: rgba(99, 102, 241, 0.38);
 
   --primary: #6366F1;
   --primary-hover: #4F46E5;
-  --primary-glow: rgba(99, 102, 241, 0.3);
+  --primary-glow: rgba(99, 102, 241, 0.38);
 
   --accent: #10B981;
-  --accent-glow: rgba(16, 185, 129, 0.3);
+  --accent-glow: rgba(16, 185, 129, 0.38);
 
   --danger: #EF4444;
   --danger-hover: #DC2626;
 
-  --text-main: #F3F4F6;
+  --text-main: #F9FAFB;
   --text-muted: #9CA3AF;
-  --text-dark: #1F2937;
+  --text-dark: #111827;
 
-  --radius-sm: 8px;
-  --radius-md: 16px;
-  --radius-lg: 24px;
+  --radius-sm: 10px;
+  --radius-md: 20px;
+  --radius-lg: 28px;
 
-  --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-fast: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* 2026年最先端のグロー・シャドウ効果 */
+  --glow-primary: 0 0 24px rgba(99, 102, 241, 0.22);
+  --glow-accent: 0 0 24px rgba(16, 185, 129, 0.22);
+  --shadow-premium: 0 20px 48px rgba(0, 0, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.05);
+
+  --bg-inset: rgba(15, 20, 35, 0.5);
+  --bg-input: rgba(11, 15, 25, 0.85);
+  --border-input: rgba(255, 255, 255, 0.06);
+}
+
+body.light-mode {
+  --bg-main: #F8FAFC;
+  --bg-gradient: radial-gradient(circle at 50% 0%, #E0E7FF 0%, #F1F5F9 55%, #F8FAFC 100%);
+
+  --card-bg: rgba(255, 255, 255, 0.75);
+  --card-border: rgba(0, 0, 0, 0.06);
+  --card-border-glow: rgba(99, 102, 241, 0.25);
+
+  --primary: #4F46E5;
+  --primary-hover: #4338CA;
+  --primary-glow: rgba(99, 102, 241, 0.2);
+
+  --accent: #059669;
+  --accent-glow: rgba(5, 150, 105, 0.25);
+
+  --danger: #DC2626;
+  --danger-hover: #B91C1C;
+
+  --text-main: #0F172A;
+  --text-muted: #64748B;
+  --text-dark: #FFFFFF;
+
+  --glow-primary: 0 0 24px rgba(99, 102, 241, 0.12);
+  --glow-accent: 0 0 24px rgba(5, 150, 105, 0.12);
+  --shadow-premium: 0 20px 48px rgba(15, 23, 42, 0.06), inset 0 1px 1px rgba(255, 255, 255, 0.8);
+
+  --bg-inset: rgba(0, 0, 0, 0.03);
+  --bg-input: #FFFFFF;
+  --border-input: rgba(0, 0, 0, 0.1);
 }
 
 /* ----------------------------------------------------------
@@ -76,14 +117,16 @@ body {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
   border-radius: var(--radius-md);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: var(--shadow-premium);
   transition: var(--transition);
 }
 
 .glass-panel:hover {
   border-color: var(--card-border-glow);
-  box-shadow: 0 8px 32px rgba(99, 102, 241, 0.08);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25), var(--glow-primary);
+  transform: translateY(-3px);
 }
 
 /* ----------------------------------------------------------
@@ -272,7 +315,7 @@ header {
   position: relative;
   border-radius: var(--radius-md);
   overflow: hidden;
-  background: rgba(15, 20, 35, 0.6);
+  background: var(--bg-inset);
   text-align: center;
   padding: 20px;
 }
@@ -418,12 +461,12 @@ textarea {
   font-family: var(--font-body);
   font-size: 0.9rem;
   color: var(--text-main);
-  background: rgba(15, 20, 35, 0.7);
-  border: 1px solid var(--card-border);
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
   border-radius: var(--radius-sm);
-  padding: 8px 12px;
+  padding: 10px 14px;
   outline: none;
-  transition: var(--transition);
+  transition: var(--transition-fast);
   width: 100%;
 }
 
@@ -432,6 +475,7 @@ select:focus,
 textarea:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px var(--primary-glow);
+  background: var(--bg-input);
 }
 
 select {
@@ -584,6 +628,12 @@ select {
   color: var(--primary);
 }
 
+.btn:active,
+.nav-tab:active,
+.toggle-btn:active {
+  transform: scale(0.96);
+}
+
 /* ----------------------------------------------------------
    13. Dashboard Stats & Navigator
    ---------------------------------------------------------- */
@@ -623,7 +673,7 @@ select {
 }
 
 .budget-overall-card {
-  background: rgba(11, 15, 25, 0.4);
+  background: var(--bg-inset);
   border: 1px solid var(--card-border);
   padding: 16px;
   border-radius: var(--radius-md);
@@ -678,7 +728,7 @@ select {
 }
 
 .stat-card {
-  background: rgba(15, 20, 35, 0.4);
+  background: var(--bg-inset);
   border: 1px solid var(--card-border);
   border-radius: var(--radius-md);
   padding: 16px;
@@ -705,7 +755,7 @@ select {
 
 /* Category budget layout */
 .dashboard-category-budget-row {
-  background: rgba(15, 20, 35, 0.3);
+  background: var(--bg-inset);
   border: 1px solid var(--card-border);
   border-radius: var(--radius-sm);
   padding: 6px 10px;
@@ -747,7 +797,7 @@ select {
 }
 
 .calendar-wrapper {
-  background: rgba(15, 20, 35, 0.3);
+  background: var(--bg-inset);
   border: 1px solid var(--card-border);
   padding: 12px;
   border-radius: var(--radius-md);
@@ -785,12 +835,12 @@ select {
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid transparent;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-input);
   border-radius: var(--radius-sm);
   padding: 4px;
   cursor: pointer;
-  transition: var(--transition);
+  transition: var(--transition-fast);
   position: relative;
   min-height: 48px;
 }
@@ -917,7 +967,7 @@ select {
 .history-list::-webkit-scrollbar-thumb,
 .day-items-list::-webkit-scrollbar-thumb,
 .budget-inputs-container::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(128, 128, 128, 0.25);
   border-radius: 99px;
 }
 
@@ -1136,7 +1186,7 @@ select {
 
 .toggle-group {
   display: inline-flex;
-  background: rgba(15, 20, 35, 0.5);
+  background: var(--bg-inset);
   border: 1px solid var(--card-border);
   border-radius: var(--radius-sm);
   overflow: hidden;
@@ -1333,7 +1383,7 @@ select {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: rgba(15, 20, 35, 0.3);
+  background: var(--bg-inset);
   border: 1px solid var(--card-border);
   border-radius: var(--radius-sm);
   padding: 8px 12px;
@@ -1425,7 +1475,7 @@ select {
 }
 
 .budget-period-cat-pill {
-  background: rgba(15, 20, 35, 0.4);
+  background: var(--bg-inset);
   border: 1px solid var(--card-border);
   border-radius: var(--radius-sm);
   padding: 6px 8px;
@@ -1452,9 +1502,9 @@ select {
   position: fixed;
   inset: 0;
   z-index: 3500;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(4, 6, 12, 0.55);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   align-items: center;
   justify-content: center;
   padding: 16px;
@@ -1466,16 +1516,17 @@ select {
 }
 
 .modal-card {
-  background: var(--bg-main);
-  background: radial-gradient(circle at 50% 0%, #1D243F 0%, #0B0F19 100%);
+  background: var(--card-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border: 1px solid var(--card-border);
   border-radius: var(--radius-lg);
   padding: 24px;
   width: 100%;
   max-width: 500px;
-  box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+  box-shadow: var(--shadow-premium);
   transform: translateY(20px);
-  animation: fadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   margin: auto;
 }
 
@@ -1512,7 +1563,7 @@ select {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
-  background: rgba(255,255,255,0.02);
+  background: var(--bg-inset);
   border: 1px solid var(--card-border);
   border-radius: var(--radius-sm);
   padding: 12px;
@@ -1540,7 +1591,7 @@ select {
 }
 
 .day-item-card {
-  background: rgba(15, 20, 35, 0.4);
+  background: var(--bg-inset);
   border: 1px solid var(--card-border);
   border-radius: var(--radius-sm);
   padding: 10px 12px;
@@ -2041,7 +2092,7 @@ select {
 }
 
 .month-nav-controls {
-  background: rgba(15, 20, 35, 0.4);
+  background: var(--bg-inset);
   border: 1px solid var(--card-border);
   border-radius: 50px;
   padding: 4px;

@@ -93,6 +93,14 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Render initial view
         updateDashboard();
+        
+        // 予算推移の開始年月インプットの初期値を設定
+        const trendStartInput = el('budgetTrendStartMonth');
+        if (trendStartInput) {
+            const y = currentMonth.getFullYear();
+            const m = String(currentMonth.getMonth() + 1).padStart(2, '0');
+            trendStartInput.value = `${y}-${m}`;
+        }
         updateBudgetTrendChart();
         
         if (typeof lucide !== 'undefined') {
@@ -109,7 +117,96 @@ function loadSettings() {
     apiKey = localStorage.getItem('gemini_api_key') || '';
     if (el('apiKeyInput')) el('apiKeyInput').value = apiKey;
     updateApiKeyStatus();
+    
+    // Load theme setting
+    const currentTheme = localStorage.getItem('smartreceipt_theme') || 'dark';
+    applyTheme(currentTheme);
 }
+
+// Theme Helper Functions
+function applyTheme(theme) {
+    const body = document.body;
+    const btn = el('themeToggleBtn');
+    if (theme === 'light') {
+        body.classList.add('light-mode');
+        if (btn) {
+            btn.innerHTML = '<i data-lucide="moon"></i>';
+            btn.title = 'ダークモードに切り替え';
+        }
+    } else {
+        body.classList.remove('light-mode');
+        if (btn) {
+            btn.innerHTML = '<i data-lucide="sun"></i>';
+            btn.title = 'ライトモードに切り替え';
+        }
+    }
+    localStorage.setItem('smartreceipt_theme', theme);
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+    // Update active chart colors
+    updateChartThemeColors(theme);
+}
+
+function getChartTextColor() {
+    const theme = localStorage.getItem('smartreceipt_theme') || 'dark';
+    return theme === 'light' ? '#64748B' : '#9CA3AF';
+}
+
+function getChartGridColor() {
+    const theme = localStorage.getItem('smartreceipt_theme') || 'dark';
+    return theme === 'light' ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.03)';
+}
+
+function updateChartThemeColors(theme) {
+    const isLight = theme === 'light';
+    const gridColor = isLight ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.03)';
+    const textColor = isLight ? '#64748B' : '#9CA3AF';
+
+    const updateScales = (chart) => {
+        if (!chart || !chart.options || !chart.options.scales) return;
+        if (chart.options.scales.x) {
+            if (!chart.options.scales.x.grid) chart.options.scales.x.grid = {};
+            chart.options.scales.x.grid.color = gridColor;
+            if (!chart.options.scales.x.ticks) chart.options.scales.x.ticks = {};
+            chart.options.scales.x.ticks.color = textColor;
+        }
+        if (chart.options.scales.y) {
+            if (!chart.options.scales.y.grid) chart.options.scales.y.grid = {};
+            chart.options.scales.y.grid.color = gridColor;
+            if (!chart.options.scales.y.ticks) chart.options.scales.y.ticks = {};
+            chart.options.scales.y.ticks.color = textColor;
+        }
+    };
+
+    const updateDoughnut = (chart) => {
+        if (!chart || !chart.options || !chart.options.plugins) return;
+        if (chart.options.plugins.legend && chart.options.plugins.legend.labels) {
+            chart.options.plugins.legend.labels.color = textColor;
+        }
+    };
+
+    if (typeof categoryDoughnutCharts !== 'undefined' && categoryDoughnutCharts) {
+        categoryDoughnutCharts.forEach(chart => {
+            updateDoughnut(chart);
+            chart.update();
+        });
+    }
+
+    if (typeof trendChartInstance !== 'undefined' && trendChartInstance) {
+        updateScales(trendChartInstance);
+        trendChartInstance.update();
+    }
+
+    if (typeof budgetTrendChartInstance !== 'undefined' && budgetTrendChartInstance) {
+        updateScales(budgetTrendChartInstance);
+        if (budgetTrendChartInstance.options.plugins.legend && budgetTrendChartInstance.options.plugins.legend.labels) {
+            budgetTrendChartInstance.options.plugins.legend.labels.color = textColor;
+        }
+        budgetTrendChartInstance.update();
+    }
+}
+
 
 function loadData() {
     // Transactions
@@ -1545,7 +1642,7 @@ function initCharts() {
                         position: 'bottom',
                         labels: {
                             boxWidth: 8,
-                            color: '#9CA3AF',
+                            color: getChartTextColor(),
                             font: { size: 9, family: 'Plus Jakarta Sans' },
                             padding: 8
                         }
@@ -1709,8 +1806,8 @@ function updateAnalyticsView() {
                 responsive: true,
                 maintainAspectRatio: false,
                 scales: {
-                    x: { stacked: true, grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#9CA3AF', font: { size: 9 } } },
-                    y: { stacked: true, grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#9CA3AF', font: { size: 9 } }, beginAtZero: true }
+                    x: { stacked: true, grid: { color: getChartGridColor() }, ticks: { color: getChartTextColor(), font: { size: 9 } } },
+                    y: { stacked: true, grid: { color: getChartGridColor() }, ticks: { color: getChartTextColor(), font: { size: 9 } }, beginAtZero: true }
                 },
                 plugins: {
                     legend: { display: false }, // Legend too large for mobile stack
@@ -2214,6 +2311,15 @@ function setupEventListeners() {
     if (el('clearApiKeyBtn')) el('clearApiKeyBtn').addEventListener('click', clearApiKey);
     if (el('resetDbBtn')) el('resetDbBtn').addEventListener('click', resetDatabase);
     
+    // Theme toggle button click listener
+    if (el('themeToggleBtn')) {
+        el('themeToggleBtn').addEventListener('click', () => {
+            const current = localStorage.getItem('smartreceipt_theme') || 'dark';
+            const next = current === 'dark' ? 'light' : 'dark';
+            applyTheme(next);
+        });
+    }
+    
     // 2. CSV Backups buttons
     if (el('exportCsvBtn')) el('exportCsvBtn').addEventListener('click', exportCSV);
     if (el('importCsvBtn')) el('importCsvBtn').addEventListener('click', () => {
@@ -2314,6 +2420,11 @@ function setupEventListeners() {
             }
         });
     }
+    
+    // 12. Budget Trend Start Month Selector Change Event
+    if (el('budgetTrendStartMonth')) {
+        el('budgetTrendStartMonth').addEventListener('change', updateBudgetTrendChart);
+    }
 }
 
 // 26. Stacked Bar Chart for monthly budget composition trend
@@ -2321,14 +2432,38 @@ function updateBudgetTrendChart() {
     const canvas = el('budgetTrendChart');
     if (!canvas) return;
     
-    const year = currentMonth.getFullYear();
+    // 開始年月の取得
+    let startDate = currentMonth; // デフォルトは現在の表示月
+    const startInput = el('budgetTrendStartMonth');
+    if (startInput && startInput.value) {
+        const [sy, sm] = startInput.value.split('-');
+        startDate = new Date(parseInt(sy), parseInt(sm) - 1, 15);
+    } else if (startInput) {
+        // インプットはあるが値が空の場合は初期設定
+        const y = currentMonth.getFullYear();
+        const m = String(currentMonth.getMonth() + 1).padStart(2, '0');
+        startInput.value = `${y}-${m}`;
+    }
+    
+    const startYear = startDate.getFullYear();
+    const startMonth = startDate.getMonth(); // 0-indexed
+    
     const labels = [];
     const monthsData = [];
     
-    // Annual range (January to December)
-    for (let m = 0; m < 12; m++) {
-        labels.push(`${m + 1}月`);
-        monthsData.push(new Date(year, m, 15));
+    // 開始年月から12ヶ月分のラベルと日付データを生成
+    for (let i = 0; i < 12; i++) {
+        const targetDate = new Date(startYear, startMonth + i, 15);
+        const y = targetDate.getFullYear();
+        const m = targetDate.getMonth() + 1;
+        
+        // 年が変わるタイミング、あるいは最初の月には年を表示する
+        if (i === 0 || m === 1) {
+            labels.push(`${y}年${m}月`);
+        } else {
+            labels.push(`${m}月`);
+        }
+        monthsData.push(targetDate);
     }
     
     const datasets = [];
@@ -2344,7 +2479,7 @@ function updateBudgetTrendChart() {
         });
     });
     
-    // Retrieve budget rule data for each month
+    // 各月の予算データを入れる
     monthsData.forEach((monthDate, monthIdx) => {
         const activeBudget = getActiveBudgetForMonth(monthDate);
         Object.entries(activeBudget).forEach(([cat, val]) => {
@@ -2367,13 +2502,25 @@ function updateBudgetTrendChart() {
             responsive: true,
             maintainAspectRatio: false,
             scales: {
-                x: { stacked: true, grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#9CA3AF', font: { size: 9 } } },
-                y: { stacked: true, grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#9CA3AF', font: { size: 9 } }, beginAtZero: true }
+                x: { stacked: true, grid: { color: getChartGridColor() }, ticks: { color: getChartTextColor(), font: { size: 9 } } },
+                y: { 
+                    stacked: true, 
+                    grid: { color: getChartGridColor() }, 
+                    ticks: { 
+                        color: getChartTextColor(), 
+                        font: { size: 9 },
+                        // Y軸の縦軸（合計金額）に通貨単位を付与する
+                        callback: function(value) {
+                            return '¥' + value.toLocaleString();
+                        }
+                    }, 
+                    beginAtZero: true 
+                }
             },
             plugins: {
                 legend: {
                     position: 'right',
-                    labels: { boxWidth: 10, color: '#9CA3AF', font: { size: 9, family: 'Plus Jakarta Sans' } }
+                    labels: { boxWidth: 10, color: getChartTextColor(), font: { size: 9, family: 'Plus Jakarta Sans' } }
                 },
                 tooltip: {
                     callbacks: {
