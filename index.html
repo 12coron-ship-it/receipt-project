@@ -136,7 +136,7 @@
         <!-- Category Chart -->
         <div class="chart-section">
           <h3 class="panel-title-sub"><i data-lucide="pie-chart" style="color:var(--primary);"></i> カテゴリ別支出割合</h3>
-          <div class="chart-container">
+          <div class="doughnut-chart-container">
             <canvas class="categoryChartCanvas"></canvas>
           </div>
         </div>
@@ -195,9 +195,9 @@
             <table class="analysis-table">
               <thead>
                 <tr>
-                  <th>カテゴリ</th>
-                  <th>支出実績</th>
-                  <th>設定予算</th>
+                  <th onclick="sortAnalyticsTable('category')" style="cursor:pointer; user-select:none;" id="th-category">カテゴリ <i data-lucide="arrow-up-down" style="width:12px;height:12px;vertical-align:middle;margin-left:4px;"></i></th>
+                  <th onclick="sortAnalyticsTable('spent')" style="cursor:pointer; user-select:none;" id="th-spent">支出実績 <i data-lucide="arrow-up-down" style="width:12px;height:12px;vertical-align:middle;margin-left:4px;"></i></th>
+                  <th onclick="sortAnalyticsTable('budget')" style="cursor:pointer; user-select:none;" id="th-budget">設定予算 <i data-lucide="arrow-up-down" style="width:12px;height:12px;vertical-align:middle;margin-left:4px;"></i></th>
                   <th>消化率</th>
                 </tr>
               </thead>
@@ -207,7 +207,7 @@
         </div>
         <div class="glass-panel share-chart-card">
           <h3 class="panel-title-sub"><i data-lucide="donut" style="color:var(--accent);"></i> カテゴリ別シェア</h3>
-          <div class="chart-container">
+          <div class="doughnut-chart-container">
             <canvas class="categoryChartCanvas"></canvas>
           </div>
         </div>
@@ -269,9 +269,22 @@
     <div class="glass-panel" style="padding:24px; margin-bottom:40px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px;">
         <h3 class="panel-title-sub" style="margin-bottom:0;"><i data-lucide="trending-up" style="color:var(--accent);"></i> 予算構成の月別推移 (12ヶ月分)</h3>
-        <div style="display:flex; align-items:center; gap:8px;">
-          <label for="budgetTrendStartMonth" style="font-size:0.78rem; color:var(--text-muted); font-weight:600; white-space:nowrap;">開始年月:</label>
-          <input type="month" id="budgetTrendStartMonth" style="padding:6px 12px; width:160px; font-size:0.85rem;">
+        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <label for="budgetTrendStartMonth" style="font-size:0.75rem; color:var(--text-muted); font-weight:600; white-space:nowrap;">開始年月:</label>
+            <input type="month" id="budgetTrendStartMonth" style="padding:6px; width:130px; font-size:0.8rem;">
+          </div>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <label for="budgetTrendCategoryFilter" style="font-size:0.75rem; color:var(--text-muted); font-weight:600; white-space:nowrap;">表示カテゴリ:</label>
+            <select id="budgetTrendCategoryFilter" style="padding:6px; width:120px; font-size:0.8rem;"></select>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <label for="budgetChartType" style="font-size:0.75rem; color:var(--text-muted); font-weight:600; white-space:nowrap;">形式:</label>
+            <select id="budgetChartType" style="padding:6px; width:110px; font-size:0.8rem;">
+              <option value="bar" selected>積み上げ棒</option>
+              <option value="line">積算折れ線</option>
+            </select>
+          </div>
         </div>
       </div>
       <div class="trend-chart-wrapper" style="position:relative; height:280px; width:100%;">
@@ -291,12 +304,29 @@
         </div>
         <div class="budget-form-grid mb-14">
           <div class="form-group">
-            <label for="recurringAmount">毎月の金額 (¥)</label>
+            <label for="recurringAmount">金額 (¥)</label>
             <input type="number" id="recurringAmount" placeholder="1480">
           </div>
           <div class="form-group">
+            <label for="recurringFrequency">発生頻度</label>
+            <select id="recurringFrequency">
+              <option value="1" selected>毎月 (1ヶ月ごと)</option>
+              <option value="weekly">毎週 (週ごと)</option>
+              <option value="2">2ヶ月ごと</option>
+              <option value="3">3ヶ月ごと (四半期)</option>
+              <option value="6">6ヶ月ごと (半年)</option>
+              <option value="12">12ヶ月ごと (1年)</option>
+              <option value="24">24ヶ月ごと (2年)</option>
+            </select>
+          </div>
+        </div>
+        <div class="budget-form-grid mb-14">
+          <div class="form-group">
             <label for="recurringCategory">カテゴリ</label>
             <select id="recurringCategory"></select>
+          </div>
+          <div class="form-group">
+            <!-- Grid Spacer -->
           </div>
         </div>
         <div class="budget-form-grid mb-24">
@@ -318,6 +348,29 @@
       <div class="glass-panel list-panel">
         <h3 class="panel-title-sub"><i data-lucide="list" style="color:var(--accent);"></i> 登録済みの固定費一覧</h3>
         <div class="budget-periods-list" id="recurringPeriodsList"></div>
+      </div>
+    </div>
+    
+    <!-- Stacked Bar Chart for Recurring Expense Trend (NEW) -->
+    <div class="glass-panel" style="padding:24px; margin-top:24px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px;">
+        <h3 class="panel-title-sub" style="margin-bottom:0;"><i data-lucide="trending-up" style="color:var(--accent);"></i> 固定費構成の月別推移 (12ヶ月分)</h3>
+        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <label for="recurringTrendStartMonth" style="font-size:0.75rem; color:var(--text-muted); font-weight:600; white-space:nowrap;">開始年月:</label>
+            <input type="month" id="recurringTrendStartMonth" style="padding:6px; width:130px; font-size:0.8rem;">
+          </div>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <label for="recurringChartType" style="font-size:0.75rem; color:var(--text-muted); font-weight:600; white-space:nowrap;">形式:</label>
+            <select id="recurringChartType" style="padding:6px; width:110px; font-size:0.8rem;">
+              <option value="bar" selected>積み上げ棒</option>
+              <option value="line">積算折れ線</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="trend-chart-wrapper" style="position:relative; height:280px; width:100%;">
+        <canvas id="recurringTrendChart"></canvas>
       </div>
     </div>
   </div>

@@ -2361,3 +2361,38 @@ body.light-mode .dashboard-category-budget-row:hover {
   height: 38px;
 }
 
+/* ドーナツグラフ用のレスポンシブコンテナ */
+.doughnut-chart-container {
+  width: 100%;
+  max-width: 420px;
+  height: 220px;
+  margin: 0 auto;
+  position: relative;
+}
+
+@media (max-width: 600px) {
+  .doughnut-chart-container {
+    max-width: 280px;
+    height: 180px;
+  }
+}
+
+/* 分析テーブルのソート可能ヘッダースタイル */
+.analysis-table th[onclick] {
+  transition: var(--transition-fast);
+}
+
+.analysis-table th[onclick]:hover {
+  color: var(--primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+body.light-mode .analysis-table th[onclick]:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.analysis-table th.active-sort {
+  color: var(--primary) !important;
+  font-weight: 700 !important;
+}
+
