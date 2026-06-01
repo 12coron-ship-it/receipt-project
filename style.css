@@ -1985,59 +1985,77 @@ body.light-mode .dashboard-category-budget-row:hover {
   }
 
   .items-header {
-    display: none;
+    display: grid !important;
+    grid-template-columns: 2.2fr 1.1fr 1.1fr 1.8fr 32px !important;
+    gap: 4px !important;
+    padding: 6px 4px !important;
+    font-size: 0.65rem !important;
   }
 
   .item-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr 34px;
-    gap: 8px;
-    padding: 10px 4px;
-    align-items: center;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    display: grid !important;
+    grid-template-columns: 2.2fr 1.1fr 1.1fr 1.8fr 32px !important;
+    gap: 4px !important;
+    padding: 6px 4px !important;
+    align-items: center !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+    position: static !important;
   }
 
   .item-row .item-name {
-    grid-column: 1 / span 2;
-    grid-row: 1;
-    width: 100%;
+    grid-column: auto !important;
+    grid-row: auto !important;
+    width: 100% !important;
+    font-size: 0.78rem !important;
+    padding: 6px 4px !important;
   }
 
   .item-row button {
-    grid-column: 3;
-    grid-row: 1;
-    align-self: center;
+    grid-column: auto !important;
+    grid-row: auto !important;
+    position: static !important;
+    align-self: center !important;
     width: 32px !important;
     height: 32px !important;
     background: rgba(239, 68, 68, 0.1) !important;
     border-color: var(--danger) !important;
-    border-radius: var(--radius-sm);
-    margin-left: auto;
+    border-radius: var(--radius-sm) !important;
+    margin: 0 !important;
   }
 
   .item-row .item-price-field {
-    grid-column: 1;
-    grid-row: 2;
+    grid-column: auto !important;
+    grid-row: auto !important;
+    width: 100% !important;
+  }
+
+  .item-row .item-price {
+    font-size: 0.78rem !important;
+    padding: 6px 4px !important;
   }
 
   .item-row .item-discount-field {
-    grid-column: 2;
-    grid-row: 2;
+    grid-column: auto !important;
+    grid-row: auto !important;
+    width: 100% !important;
+  }
+
+  .item-row .item-discount {
+    font-size: 0.78rem !important;
+    padding: 6px 4px !important;
   }
 
   .item-row .item-category {
-    grid-column: 1 / span 3;
-    grid-row: 3;
-    font-size: 16px !important;
+    grid-column: auto !important;
+    grid-row: auto !important;
+    font-size: 0.75rem !important;
+    padding: 6px 16px 6px 4px !important;
+    height: 30px !important;
+    background-position: right 4px center !important;
   }
 
   .mobile-field-label {
-    display: block;
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    font-weight: 600;
-    margin-bottom: 4px;
-    text-align: left;
+    display: none !important;
   }
 
   /* Prevent iOS/Android zoom on input focus */

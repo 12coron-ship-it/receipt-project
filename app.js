@@ -2094,7 +2094,7 @@ function updateAnalyticsView() {
             }
         });
 
-        // グラフ下部の動的凡例（カテゴリ色＋具体的な金額）の生成
+        // グラフ下部の動的凡例の生成（枠線を廃止し、フォントサイズを縮小してパーセント割合を追加）
         const legendContainer = el('trendChartLegend');
         if (legendContainer) {
             legendContainer.innerHTML = '';
@@ -2110,24 +2110,28 @@ function updateAnalyticsView() {
                 });
             });
 
+            // 期間中の合計支出を計算
+            let periodTotal = 0;
+            Object.values(categoryTotals).forEach(v => periodTotal += v);
+
             Object.entries(categoryMeta).forEach(([key, meta]) => {
                 const spent = categoryTotals[key] || 0;
                 if (spent > 0) {
+                    const pct = periodTotal > 0 ? ((spent / periodTotal) * 100).toFixed(1) : '0.0';
                     const legendItem = document.createElement('div');
                     legendItem.style.display = 'inline-flex';
                     legendItem.style.alignItems = 'center';
-                    legendItem.style.gap = '6px';
-                    legendItem.style.fontSize = '0.78rem';
-                    legendItem.style.background = 'rgba(255, 255, 255, 0.03)';
-                    legendItem.style.border = '1px solid var(--card-border)';
-                    legendItem.style.padding = '4px 10px';
-                    legendItem.style.borderRadius = '50px';
+                    legendItem.style.gap = '5px';
+                    legendItem.style.fontSize = '0.7rem';
+                    legendItem.style.color = 'var(--text-muted)';
                     legendItem.style.cursor = 'pointer';
+                    legendItem.style.padding = '2px 4px';
                     legendItem.addEventListener('click', () => showCategoryItems(key));
                     legendItem.innerHTML = `
-                        <span class="cat-dot" style="background-color: ${meta.color}; width:8px; height:8px; border-radius:50%; display:inline-block;"></span>
-                        <span style="font-weight:600; color:var(--text-main);">${meta.label}</span>
-                        <span style="color:var(--text-muted); font-size:0.72rem;">¥${spent.toLocaleString()}</span>
+                        <span class="cat-dot" style="background-color: ${meta.color}; width:6px; height:6px; border-radius:50%; display:inline-block;"></span>
+                        <span style="font-weight:600; color:var(--text-main);">${meta.label}:</span>
+                        <span style="color:var(--text-main);">¥${spent.toLocaleString()}</span>
+                        <span style="font-size:0.65rem; color:var(--text-muted);">(${pct}%)</span>
                     `;
                     legendContainer.appendChild(legendItem);
                 }
