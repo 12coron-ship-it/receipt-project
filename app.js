@@ -82,6 +82,35 @@ const el = (id) => document.getElementById(id);
 const qsa = (sel) => document.querySelectorAll(sel);
 const qs = (sel) => document.querySelector(sel);
 
+function showChartOfflinePlaceholder(canvas) {
+    if (!canvas) return;
+    const container = canvas.parentNode;
+    if (container) {
+        const oldPlaceholder = container.querySelector('.chart-offline-placeholder');
+        if (oldPlaceholder) oldPlaceholder.remove();
+        
+        const placeholder = document.createElement('div');
+        placeholder.className = 'chart-offline-placeholder';
+        placeholder.style.cssText = 'display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.75rem;padding:20px;text-align:center;border:1px dashed var(--card-border);border-radius:var(--radius-sm);background:rgba(255,255,255,0.02);box-sizing:border-box;';
+        placeholder.innerHTML = '<div><i data-lucide="wifi-off" style="width:20px;height:20px;margin-bottom:8px;opacity:0.6;display:inline-block;"></i><br>グラフを表示するにはインターネット接続が必要です。</div>';
+        container.appendChild(placeholder);
+        canvas.style.display = 'none';
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    }
+}
+
+function hideChartOfflinePlaceholder(canvas) {
+    if (!canvas) return;
+    const container = canvas.parentNode;
+    if (container) {
+        const placeholder = container.querySelector('.chart-offline-placeholder');
+        if (placeholder) placeholder.remove();
+    }
+    canvas.style.display = 'block';
+}
+
 // 3. Application Lifecycle
 document.addEventListener('DOMContentLoaded', () => {
     try {
@@ -102,21 +131,26 @@ document.addEventListener('DOMContentLoaded', () => {
         // Render initial view
         updateDashboard();
         
-        // 予算推移の開始年月インプットの初期値を設定
+        // 予算推移・固定費推移の開始年月インプットの初期値を設定
         const trendStartInput = el('budgetTrendStartMonth');
+        const y = currentMonth.getFullYear();
+        const m = String(currentMonth.getMonth() + 1).padStart(2, '0');
         if (trendStartInput) {
-            const y = currentMonth.getFullYear();
-            const m = String(currentMonth.getMonth() + 1).padStart(2, '0');
             trendStartInput.value = `${y}-${m}`;
         }
+        const recTrendStartInput = el('recurringTrendStartMonth');
+        if (recTrendStartInput) {
+            recTrendStartInput.value = `${y}-${m}`;
+        }
         updateBudgetTrendChart();
+        updateRecurringTrendChart();
         
         if (typeof lucide !== 'undefined') {
             lucide.createIcons();
         }
     } catch (e) {
         console.error("SmartReceipt initialization error: ", e);
-        showToast("初期化中にエラーが発生しました。リロードしてください。", "error");
+        showToast("初期化中にエラーが発生しました: " + e.message, "error");
     }
 });
 
@@ -359,18 +393,31 @@ function renderCategoryItems() {
 
 function loadData() {
     // Transactions
-    const txnData = localStorage.getItem('receipt_transactions');
-    transactions = txnData ? JSON.parse(txnData) : [];
+    try {
+        const txnData = localStorage.getItem('receipt_transactions');
+        transactions = txnData ? JSON.parse(txnData) : [];
+        if (!Array.isArray(transactions)) transactions = [];
+    } catch (err) {
+        console.error("Failed to parse transactions:", err);
+        transactions = [];
+    }
     
     // Budgets
-    const budgetData = localStorage.getItem('receipt_budgets');
-    const loadedBudgets = budgetData ? JSON.parse(budgetData) : [];
+    let loadedBudgets = [];
+    try {
+        const budgetData = localStorage.getItem('receipt_budgets');
+        loadedBudgets = budgetData ? JSON.parse(budgetData) : [];
+        if (!Array.isArray(loadedBudgets)) loadedBudgets = [];
+    } catch (err) {
+        console.error("Failed to parse budgets:", err);
+        loadedBudgets = [];
+    }
     
     // Migrate old format to new category-specific rules if needed
     let migrated = false;
     budgets = [];
     loadedBudgets.forEach(b => {
-        if (b.categories && typeof b.categories === 'object') {
+        if (b && b.categories && typeof b.categories === 'object') {
             Object.entries(b.categories).forEach(([cat, amount]) => {
                 if (amount > 0) {
                     budgets.push({
@@ -383,7 +430,7 @@ function loadData() {
                 }
             });
             migrated = true;
-        } else if (b.category && b.amount) {
+        } else if (b && b.category && b.amount) {
             budgets.push(b);
         }
     });
@@ -392,8 +439,14 @@ function loadData() {
     }
     
     // Recurring Costs
-    const recurData = localStorage.getItem('receipt_recurring');
-    recurringExpenses = recurData ? JSON.parse(recurData) : [];
+    try {
+        const recurData = localStorage.getItem('receipt_recurring');
+        recurringExpenses = recurData ? JSON.parse(recurData) : [];
+        if (!Array.isArray(recurringExpenses)) recurringExpenses = [];
+    } catch (err) {
+        console.error("Failed to parse recurring expenses:", err);
+        recurringExpenses = [];
+    }
 }
 
 function saveData(key) {
@@ -1944,6 +1997,19 @@ function initCharts() {
         });
     }
 
+    if (typeof Chart === 'undefined') {
+        console.warn("Chart.js is not loaded. Showing offline placeholders.");
+        qsa('.categoryChartCanvas, #trendChart, #budgetTrendChart, #recurringTrendChart').forEach(canvas => {
+            showChartOfflinePlaceholder(canvas);
+        });
+        return;
+    }
+
+    // Hide placeholders if Chart is defined
+    qsa('.categoryChartCanvas, #trendChart, #budgetTrendChart, #recurringTrendChart').forEach(canvas => {
+        hideChartOfflinePlaceholder(canvas);
+    });
+
     qsa('.categoryChartCanvas').forEach(canvas => {
         const ctx = canvas.getContext('2d');
         const chart = new Chart(ctx, {
@@ -1976,7 +2042,7 @@ function initCharts() {
                 },
                 plugins: {
                     legend: {
-                        position: window.innerWidth > 600 ? 'right' : 'bottom',
+                        position: 'right',
                         align: 'center',
                         labels: {
                             boxWidth: 8,
@@ -2007,6 +2073,13 @@ function initCharts() {
 }
 
 function updateShareCharts(monthlyTxns) {
+    if (typeof Chart === 'undefined') {
+        qsa('.categoryChartCanvas').forEach(canvas => {
+            showChartOfflinePlaceholder(canvas);
+        });
+        return;
+    }
+
     const spends = {};
     Object.keys(categoryMeta).forEach(k => spends[k] = 0);
     
@@ -2138,30 +2211,35 @@ function updateAnalyticsView() {
     // Render Stacked Bar Chart
     const canvas = el('trendChart');
     if (canvas) {
-        if (trendChartInstance) trendChartInstance.destroy();
-        const ctx = canvas.getContext('2d');
-        trendChartInstance = new Chart(ctx, {
-            type: 'bar',
-            data: { labels: labels, datasets: datasets },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    x: { stacked: true, grid: { color: getChartGridColor() }, ticks: { color: getChartTextColor(), font: { size: 9 } } },
-                    y: { stacked: true, grid: { color: getChartGridColor() }, ticks: { color: getChartTextColor(), font: { size: 9 } }, beginAtZero: true }
-                },
-                plugins: {
-                    legend: { display: false }, // Legend too large for mobile stack
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                return context.raw === 0 ? null : `${context.dataset.label}: ¥${context.raw.toLocaleString()}`;
+        if (typeof Chart === 'undefined') {
+            showChartOfflinePlaceholder(canvas);
+        } else {
+            hideChartOfflinePlaceholder(canvas);
+            if (trendChartInstance) trendChartInstance.destroy();
+            const ctx = canvas.getContext('2d');
+            trendChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: labels, datasets: datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { stacked: true, grid: { color: getChartGridColor() }, ticks: { color: getChartTextColor(), font: { size: 9 } } },
+                        y: { stacked: true, grid: { color: getChartGridColor() }, ticks: { color: getChartTextColor(), font: { size: 9 } }, beginAtZero: true }
+                    },
+                    plugins: {
+                        legend: { display: false }, // Legend too large for mobile stack
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.raw === 0 ? null : `${context.dataset.label}: ¥${context.raw.toLocaleString()}`;
+                                }
                             }
                         }
                     }
                 }
-            }
-        });
+            });
+        }
 
         // グラフ下部の動的凡例の生成（枠線を廃止し、フォントサイズを縮小してパーセント割合を追加）
         const legendContainer = el('trendChartLegend');
@@ -2194,7 +2272,8 @@ function updateAnalyticsView() {
                     legendItem.style.fontSize = '0.62rem';
                     legendItem.style.color = 'var(--text-muted)';
                     legendItem.style.cursor = 'pointer';
-                    legendItem.style.padding = '2px 4px';
+                    legendItem.style.padding = '1px 3px';
+                    legendItem.style.margin = '2px 0';
                     legendItem.addEventListener('click', () => showCategoryItems(key));
                     legendItem.innerHTML = `
                         <span class="cat-dot" style="background-color: ${meta.color}; width:6px; height:6px; border-radius:50%; display:inline-block;"></span>
@@ -2233,7 +2312,9 @@ function updateAnalyticsView() {
         visibleCats.sort((a, b) => {
             let comparison = 0;
             if (analyticsTableSortKey === 'category') {
-                comparison = a.label.localeCompare(b.label, 'ja');
+                const indexA = catKeys.indexOf(a.key);
+                const indexB = catKeys.indexOf(b.key);
+                comparison = indexA - indexB;
             } else if (analyticsTableSortKey === 'spent') {
                 comparison = a.spent - b.spent;
             } else if (analyticsTableSortKey === 'budget') {
@@ -2916,9 +2997,14 @@ function setupEventListeners() {
                 }
             }
         });
-        dropzone.addEventListener('click', () => {
-            if (el('fileInput')) el('fileInput').click();
-        });
+        // Trigger file input click when importReceiptBtn is clicked
+        const importBtn = el('importReceiptBtn');
+        if (importBtn) {
+            importBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (el('fileInput')) el('fileInput').click();
+            });
+        }
     }
     if (el('fileInput')) el('fileInput').addEventListener('change', handleFileUpload);
     
@@ -3049,6 +3135,12 @@ function updateBudgetTrendChart() {
     const canvas = el('budgetTrendChart');
     if (!canvas) return;
     
+    if (typeof Chart === 'undefined') {
+        showChartOfflinePlaceholder(canvas);
+        return;
+    }
+    hideChartOfflinePlaceholder(canvas);
+    
     // 開始年月の取得
     let startDate = currentMonth; // デフォルトは現在の表示月
     const startInput = el('budgetTrendStartMonth');
@@ -3099,7 +3191,7 @@ function updateBudgetTrendChart() {
                 data: new Array(12).fill(0),
                 fill: chartType === 'line',
                 tension: chartType === 'line' ? 0.15 : 0,
-                pointRadius: chartType === 'line' ? 3 : 0,
+                pointRadius: 0,
                 stack: 'budget-stack'
             });
         });
@@ -3114,8 +3206,8 @@ function updateBudgetTrendChart() {
             });
         });
         
-        // 積み上げ順序を逆にして見栄えを直感的にする
-        datasets.reverse();
+        // Filter out empty datasets (value is 0 for all months)
+        datasets = datasets.filter(ds => ds.data.some(v => v > 0));
     } else {
         // 特定のカテゴリのみを表示（折れ線で予算額と固定費を比較、stacked=false）
         isStacked = false;
@@ -3175,7 +3267,7 @@ function updateBudgetTrendChart() {
                 data: budgetData,
                 fill: true,
                 tension: 0.15,
-                pointRadius: 4
+                pointRadius: 0
             },
             {
                 label: `${meta.label} 固定費合計`,
@@ -3186,7 +3278,7 @@ function updateBudgetTrendChart() {
                 data: recurringData,
                 fill: false,
                 tension: 0.15,
-                pointRadius: 4
+                pointRadius: 0
             }
         ];
     }
@@ -3220,7 +3312,12 @@ function updateBudgetTrendChart() {
             plugins: {
                 legend: {
                     position: 'right',
-                    labels: { boxWidth: 10, color: getChartTextColor(), font: { size: 9, family: 'Plus Jakarta Sans' } }
+                    labels: {
+                        reverse: true,
+                        boxWidth: 10,
+                        color: getChartTextColor(),
+                        font: { size: 9, family: 'Plus Jakarta Sans' }
+                    }
                 },
                 tooltip: {
                     callbacks: {
@@ -3238,6 +3335,12 @@ function updateBudgetTrendChart() {
 function updateRecurringTrendChart() {
     const canvas = el('recurringTrendChart');
     if (!canvas) return;
+    
+    if (typeof Chart === 'undefined') {
+        showChartOfflinePlaceholder(canvas);
+        return;
+    }
+    hideChartOfflinePlaceholder(canvas);
     
     // 開始年月の取得
     let startDate = currentMonth;
@@ -3284,7 +3387,7 @@ function updateRecurringTrendChart() {
             data: new Array(12).fill(0),
             fill: chartType === 'line',
             tension: chartType === 'line' ? 0.15 : 0,
-            pointRadius: chartType === 'line' ? 3 : 0,
+            pointRadius: 0,
             stack: 'recurring-stack'
         });
     });
@@ -3328,7 +3431,8 @@ function updateRecurringTrendChart() {
         });
     });
     
-    datasets.reverse();
+    // Filter out empty datasets (value is 0 for all months)
+    datasets = datasets.filter(ds => ds.data.some(v => v > 0));
     
     const ctx = canvas.getContext('2d');
     if (recurringTrendChartInstance) {
@@ -3359,7 +3463,12 @@ function updateRecurringTrendChart() {
             plugins: {
                 legend: {
                     position: 'right',
-                    labels: { boxWidth: 10, color: getChartTextColor(), font: { size: 9, family: 'Plus Jakarta Sans' } }
+                    labels: {
+                        reverse: true,
+                        boxWidth: 10,
+                        color: getChartTextColor(),
+                        font: { size: 9, family: 'Plus Jakarta Sans' }
+                    }
                 },
                 tooltip: {
                     callbacks: {

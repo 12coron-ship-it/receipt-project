@@ -17,6 +17,7 @@
     <div class="logo" style="display:flex; align-items:center; gap:12px;">
       <i data-lucide="receipt"></i> Smart<span>Receipt</span>
       <div id="apiKeyStatus" class="api-key-badge disconnected" style="font-size:0.74rem; padding: 4px 10px; margin-left:8px;"><i data-lucide="info"></i> デモモード</div>
+      <span class="version-label" style="font-size: 0.58rem; color: var(--text-muted); margin-left: 8px; font-family: monospace; white-space: nowrap; line-height: 1;">v260601.2123</span>
     </div>
     <button id="themeToggleBtn" class="btn btn-secondary btn-icon" title="テーマ切り替え">
       <i data-lucide="sun"></i>
@@ -35,20 +36,17 @@
     <div class="app-grid">
       <!-- Left Column: Inputs / Scan Actions -->
       <div class="input-column">
-        <!-- Upload Dropzone (Subpanel) -->
-        <div class="upload-card glass-panel active" id="dropzone">
-          <input type="file" id="fileInput" class="file-input" accept="image/*" capture="environment" multiple>
-          <div class="upload-icon"><i data-lucide="aperture"></i></div>
-          <div class="upload-text">
-            <h3>レシートをスキャン</h3>
-            <p>画像を複数選択・ドラッグ＆ドロップ（一括解析に対応）</p>
+        <!-- AI Scan & Input Panel (Subpanel) -->
+        <div class="glass-panel active" id="dropzone" style="padding: 24px; display: flex; flex-direction: column; gap: 16px;">
+          <input type="file" id="fileInput" class="file-input" accept="image/*" multiple style="display: none;">
+          <h3 style="font-family: var(--font-heading); font-size: 1.05rem; font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; border-bottom: none; padding-bottom: 0;">
+            <i data-lucide="aperture" style="color: var(--primary); width: 18px; height: 18px;"></i> AIレシート解析・入力
+          </h3>
+          <div class="quick-actions">
+            <button class="btn btn-primary" id="startCameraBtn" style="height: 44px; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600;"><i data-lucide="camera"></i> スマホカメラで連続撮影する</button>
+            <button class="btn btn-secondary" id="importReceiptBtn" style="height: 44px; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600;"><i data-lucide="upload-cloud"></i> ファイルからレシートをインポートする</button>
+            <button class="btn btn-secondary" id="manualInputBtn" style="height: 44px; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600;"><i data-lucide="keyboard"></i> 手動で入力する</button>
           </div>
-        </div>
-
-        <!-- Action Buttons -->
-        <div class="quick-actions">
-          <button class="btn btn-primary" id="startCameraBtn"><i data-lucide="camera"></i> スマホカメラで連続撮影する</button>
-          <button class="btn btn-secondary" id="manualInputBtn"><i data-lucide="keyboard"></i> 手動で入力する</button>
         </div>
 
         <!-- Bulk Progress (Subpanel) -->
@@ -187,7 +185,7 @@
           <div class="trend-chart-wrapper">
             <canvas id="trendChart"></canvas>
           </div>
-          <div id="trendChartLegend" style="margin-top: 15px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; padding: 0 10px 10px;"></div>
+          <div id="trendChartLegend" style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 4px 8px; justify-content: center; padding: 0 10px 4px;"></div>
         </div>
         <div class="glass-panel table-card">
           <h3 class="panel-title-sub"><i data-lucide="grid" style="color:var(--primary);"></i> カテゴリ別予算と実績</h3>
@@ -270,17 +268,17 @@
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px;">
         <h3 class="panel-title-sub" style="margin-bottom:0;"><i data-lucide="trending-up" style="color:var(--accent);"></i> 予算構成の月別推移 (12ヶ月分)</h3>
         <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-          <div style="display:flex; align-items:center; gap:6px;">
-            <label for="budgetTrendStartMonth" style="font-size:0.75rem; color:var(--text-muted); font-weight:600; white-space:nowrap;">開始年月:</label>
-            <input type="month" id="budgetTrendStartMonth" style="padding:6px; width:130px; font-size:0.8rem;">
+          <div style="display:flex; align-items:center; gap:4px;">
+            <label for="budgetTrendStartMonth" style="font-size:0.68rem; color:var(--text-muted); font-weight:600; white-space:nowrap;">開始年月:</label>
+            <input type="month" id="budgetTrendStartMonth" style="padding:3px 6px; width:110px; font-size:0.68rem; height:26px;">
           </div>
-          <div style="display:flex; align-items:center; gap:6px;">
-            <label for="budgetTrendCategoryFilter" style="font-size:0.75rem; color:var(--text-muted); font-weight:600; white-space:nowrap;">表示カテゴリ:</label>
-            <select id="budgetTrendCategoryFilter" style="padding:6px; width:120px; font-size:0.8rem;"></select>
+          <div style="display:flex; align-items:center; gap:4px;">
+            <label for="budgetTrendCategoryFilter" style="font-size:0.68rem; color:var(--text-muted); font-weight:600; white-space:nowrap;">表示カテゴリ:</label>
+            <select id="budgetTrendCategoryFilter" style="padding:3px 6px; width:110px; font-size:0.68rem; height:26px;"></select>
           </div>
-          <div style="display:flex; align-items:center; gap:6px;">
-            <label for="budgetChartType" style="font-size:0.75rem; color:var(--text-muted); font-weight:600; white-space:nowrap;">形式:</label>
-            <select id="budgetChartType" style="padding:6px; width:110px; font-size:0.8rem;">
+          <div style="display:flex; align-items:center; gap:4px;">
+            <label for="budgetChartType" style="font-size:0.68rem; color:var(--text-muted); font-weight:600; white-space:nowrap;">形式:</label>
+            <select id="budgetChartType" style="padding:3px 6px; width:100px; font-size:0.68rem; height:26px;">
               <option value="bar" selected>積み上げ棒</option>
               <option value="line">積算折れ線</option>
             </select>
@@ -355,14 +353,14 @@
     <div class="glass-panel" style="padding:24px; margin-top:24px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px;">
         <h3 class="panel-title-sub" style="margin-bottom:0;"><i data-lucide="trending-up" style="color:var(--accent);"></i> 固定費構成の月別推移 (12ヶ月分)</h3>
-        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-          <div style="display:flex; align-items:center; gap:6px;">
-            <label for="recurringTrendStartMonth" style="font-size:0.75rem; color:var(--text-muted); font-weight:600; white-space:nowrap;">開始年月:</label>
-            <input type="month" id="recurringTrendStartMonth" style="padding:6px; width:130px; font-size:0.8rem;">
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <div style="display:flex; align-items:center; gap:4px;">
+            <label for="recurringTrendStartMonth" style="font-size:0.68rem; color:var(--text-muted); font-weight:600; white-space:nowrap;">開始年月:</label>
+            <input type="month" id="recurringTrendStartMonth" style="padding:3px 6px; width:110px; font-size:0.68rem; height:26px;">
           </div>
-          <div style="display:flex; align-items:center; gap:6px;">
-            <label for="recurringChartType" style="font-size:0.75rem; color:var(--text-muted); font-weight:600; white-space:nowrap;">形式:</label>
-            <select id="recurringChartType" style="padding:6px; width:110px; font-size:0.8rem;">
+          <div style="display:flex; align-items:center; gap:4px;">
+            <label for="recurringChartType" style="font-size:0.68rem; color:var(--text-muted); font-weight:600; white-space:nowrap;">形式:</label>
+            <select id="recurringChartType" style="padding:3px 6px; width:100px; font-size:0.68rem; height:26px;">
               <option value="bar" selected>積み上げ棒</option>
               <option value="line">積算折れ線</option>
             </select>
@@ -381,7 +379,7 @@
       <input type="file" id="csvFileInput" accept=".csv" style="display: none;">
       <button class="btn btn-secondary" id="importCsvBtn"><i data-lucide="upload"></i> CSV読込</button>
       <button class="btn btn-secondary" id="exportCsvBtn"><i data-lucide="download"></i> CSV出力</button>
-      <button class="btn btn-secondary" id="openSettingsBtn"><i data-lucide="settings"></i> API設定</button>
+      <button class="btn btn-secondary" id="openSettingsBtn"><i data-lucide="settings"></i> API/設定</button>
     </div>
     <div class="footer-text" style="font-size:0.76rem; color:var(--text-muted);">© 2026 SmartReceipt. All rights reserved.</div>
   </footer>
