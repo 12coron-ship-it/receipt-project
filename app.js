@@ -2034,7 +2034,7 @@ function renderRankings(datasetTxns) {
         let allItems = [];
         datasetTxns.forEach(t => {
             t.items.forEach(i => {
-                allItems.push({ name: i.name, price: i.price, date: t.date, store: t.storeName, category: i.category });
+                allItems.push({ name: i.name, price: i.price, date: t.date, store: t.storeName, category: i.category, txnId: t.id });
             });
         });
         
@@ -2049,6 +2049,11 @@ function renderRankings(datasetTxns) {
                 const badgeMeta = categoryMeta[item.category || 'others'] || categoryMeta.others;
                 const li = document.createElement('li');
                 li.className = 'ranking-item';
+                li.style.cursor = 'pointer';
+                li.title = 'クリックして編集';
+                li.addEventListener('click', () => {
+                    window.editTransactionItem(item.txnId);
+                });
                 li.innerHTML = `
                     <div class="ranking-left-info">
                         <span class="ranking-index">${index + 1}</span>
@@ -2598,6 +2603,24 @@ function setupEventListeners() {
     if (el('closeCategoryItemsModalBtn')) {
         el('closeCategoryItemsModalBtn').addEventListener('click', () => closeModal('categoryItemsModal'));
     }
+    
+    // 14. Click outside modal overlays to close them
+    qsa('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) {
+                // If it is the editor panel, trigger standard cancel logic to clean up state
+                if (overlay.id === 'editorPanel') {
+                    if (typeof cancelEditor === 'function') {
+                        cancelEditor();
+                    } else {
+                        closeModal(overlay.id);
+                    }
+                } else {
+                    closeModal(overlay.id);
+                }
+            }
+        });
+    });
 }
 
 // 26. Stacked Bar Chart for monthly budget composition trend

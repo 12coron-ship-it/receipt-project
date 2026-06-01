@@ -1283,6 +1283,18 @@ select {
   border: 1px solid var(--card-border);
   border-radius: var(--radius-sm);
   font-size: 0.85rem;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.ranking-item:hover {
+  border-color: var(--card-border-glow);
+  background: rgba(255, 255, 255, 0.04);
+  transform: translateY(-1px);
+}
+
+.ranking-item:active {
+  transform: scale(0.98);
 }
 
 .ranking-left-info {
@@ -1874,19 +1886,27 @@ select {
   }
   
   header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     padding: 16px 0;
   }
   
   .logo {
-    font-size: 1.6rem;
-    justify-content: center;
+    font-size: 1.35rem;
+    justify-content: flex-start;
+  }
+
+  .logo .api-key-badge {
+    font-size: 0.65rem !important;
+    padding: 2px 6px !important;
+    margin-left: 4px !important;
   }
   
   #themeToggleBtn {
-    margin: 0 auto;
+    margin: 0;
+    flex-shrink: 0;
   }
   
   .header-actions {
