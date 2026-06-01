@@ -466,6 +466,34 @@
   </div>
 </div>
 
+<!-- MODAL 6: CATEGORY ITEMS DETAIL -->
+<div class="modal-overlay" id="categoryItemsModal">
+  <div class="modal-card" style="max-width:640px;">
+    <div class="modal-header">
+      <h3 class="modal-title" id="categoryItemsTitle">カテゴリ別内訳</h3>
+      <button class="close-btn" id="closeCategoryItemsBtn">&times;</button>
+    </div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+      <span style="font-size:0.82rem; color:var(--text-muted);">
+        対象期間: <span id="categoryItemsPeriodLabel" style="font-weight:600; color:var(--text-main);"></span>
+      </span>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <label for="categoryItemsSort" style="font-size:0.78rem; color:var(--text-muted); font-weight:600;">並び替え:</label>
+        <select id="categoryItemsSort" style="padding:6px 12px; font-size:0.8rem; width:130px; background-color:var(--bg-input); border:1px solid var(--border-input); color:var(--text-main);">
+          <option value="date-desc">日付の新しい順</option>
+          <option value="date-asc">日付の古い順</option>
+          <option value="amount-desc">金額の高い順</option>
+          <option value="amount-asc">金額の低い順</option>
+        </select>
+      </div>
+    </div>
+    <div class="day-items-list" id="categoryItemsList" style="max-height:350px; overflow-y:auto; padding-right:4px;"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="closeCategoryItemsModalBtn">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast Container -->
 <div class="toast-container" id="toastContainer"></div>
 

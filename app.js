@@ -70,6 +70,10 @@ let editingTransactionId = null;
 let editingBudgetPeriodId = null;
 let editingRecurringId = null;
 
+// Category details popup state
+let currentCategoryItems = [];
+let currentCategoryKey = '';
+
 // Helpers
 const el = (id) => document.getElementById(id);
 const qsa = (sel) => document.querySelectorAll(sel);
@@ -207,6 +211,147 @@ function updateChartThemeColors(theme) {
     }
 }
 
+// Category Detail Popup Helpers
+function getTransactionsForCurrentScope() {
+    const activeTab = qs('.nav-tab.active') ? qs('.nav-tab.active').getAttribute('data-tab') : 'dashboard';
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth() + 1;
+    
+    if (activeTab === 'dashboard') {
+        // Dashboard is always monthly
+        return getMonthlyResolvedTransactions(year, month);
+    } else if (activeTab === 'analytics') {
+        // Analytics period
+        if (analyticsPeriod === 'month') {
+            return getMonthlyResolvedTransactions(year, month);
+        } else if (analyticsPeriod === 'quarter') {
+            const quarterIndex = Math.ceil(month / 3);
+            const startMonthOfQuarter = (quarterIndex - 1) * 3 + 1;
+            let quarterTxns = [];
+            for (let m = 0; m < 3; m++) {
+                quarterTxns = quarterTxns.concat(getMonthlyResolvedTransactions(year, startMonthOfQuarter + m));
+            }
+            return quarterTxns;
+        } else if (analyticsPeriod === 'year') {
+            let yearTxns = [];
+            for (let m = 1; m <= 12; m++) {
+                yearTxns = yearTxns.concat(getMonthlyResolvedTransactions(year, m));
+            }
+            return yearTxns;
+        }
+    }
+    // Fallback
+    return getMonthlyResolvedTransactions(year, month);
+}
+
+function showCategoryItems(categoryKey) {
+    currentCategoryKey = categoryKey;
+    const txns = getTransactionsForCurrentScope();
+    
+    currentCategoryItems = [];
+    txns.forEach(t => {
+        const items = t.items || [];
+        items.forEach(i => {
+            const cat = i.category || 'others';
+            if (cat === categoryKey) {
+                currentCategoryItems.push({
+                    name: i.name,
+                    price: i.price,
+                    date: t.date,
+                    store: t.storeName,
+                    category: cat,
+                    txnId: t.id
+                });
+            }
+        });
+    });
+    
+    // Reset sort selector to date-desc initially
+    if (el('categoryItemsSort')) {
+        el('categoryItemsSort').value = 'date-desc';
+    }
+    
+    // Sort and render
+    renderCategoryItems();
+    
+    // Open the modal
+    openModal('categoryItemsModal');
+}
+
+function renderCategoryItems() {
+    const listEl = el('categoryItemsList');
+    if (!listEl) return;
+    
+    listEl.innerHTML = '';
+    
+    // Determine sort option
+    const sortVal = el('categoryItemsSort') ? el('categoryItemsSort').value : 'date-desc';
+    
+    const sorted = [...currentCategoryItems];
+    if (sortVal === 'date-desc') {
+        sorted.sort((a, b) => new Date(b.date) - new Date(a.date));
+    } else if (sortVal === 'date-asc') {
+        sorted.sort((a, b) => new Date(a.date) - new Date(b.date));
+    } else if (sortVal === 'amount-desc') {
+        sorted.sort((a, b) => b.price - a.price);
+    } else if (sortVal === 'amount-asc') {
+        sorted.sort((a, b) => a.price - b.price);
+    }
+    
+    // Set title and period label
+    const meta = categoryMeta[currentCategoryKey] || categoryMeta.others;
+    if (el('categoryItemsTitle')) {
+        el('categoryItemsTitle').innerHTML = `<span class="cat-dot" style="background-color:${meta.color}; width:12px; height:12px; display:inline-block; border-radius:50%; margin-right:8px;"></span>${meta.label} の支出内訳`;
+    }
+    
+    if (el('categoryItemsPeriodLabel')) {
+        const activeTab = qs('.nav-tab.active') ? qs('.nav-tab.active').getAttribute('data-tab') : 'dashboard';
+        const year = currentMonth.getFullYear();
+        const month = currentMonth.getMonth() + 1;
+        
+        if (activeTab === 'dashboard') {
+            el('categoryItemsPeriodLabel').textContent = `${year}年${month}月`;
+        } else {
+            if (analyticsPeriod === 'month') {
+                el('categoryItemsPeriodLabel').textContent = `${year}年${month}月`;
+            } else if (analyticsPeriod === 'quarter') {
+                const q = Math.ceil(month / 3);
+                el('categoryItemsPeriodLabel').textContent = `${year}年 Q${q}`;
+            } else if (analyticsPeriod === 'year') {
+                el('categoryItemsPeriodLabel').textContent = `${year}年`;
+            }
+        }
+    }
+    
+    if (sorted.length === 0) {
+        listEl.innerHTML = '<div class="empty-state">該当するデータはありません</div>';
+        return;
+    }
+    
+    sorted.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'day-item-card';
+        div.style.marginBottom = '8px';
+        div.style.cursor = 'pointer';
+        div.title = 'クリックして編集';
+        div.addEventListener('click', () => {
+            closeModal('categoryItemsModal');
+            window.editTransactionItem(item.txnId);
+        });
+        div.innerHTML = `
+            <div class="day-item-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="font-weight:700; font-size:0.9rem; color:var(--text-main);">${item.name}</div>
+                <div style="font-weight:700; font-size:0.95rem; color:var(--primary);">¥${item.price.toLocaleString()}</div>
+            </div>
+            <div class="day-sub-item" style="display:flex; justify-content:space-between; font-size:0.78rem; color:var(--text-muted); margin-top:4px;">
+                <div>${item.store}</div>
+                <div>${item.date}</div>
+            </div>
+        `;
+        listEl.appendChild(div);
+    });
+}
+
 
 function loadData() {
     // Transactions
@@ -331,6 +476,8 @@ function closeModal(modalId) {
 
 window.openModal = openModal;
 window.closeModal = closeModal;
+window.showCategoryItems = showCategoryItems;
+window.renderCategoryItems = renderCategoryItems;
 
 // 8. Setup Subpanel states inside Dashboard
 function showDashboardSubpanel(activePanelId) {
@@ -1637,6 +1784,19 @@ function initCharts() {
                 responsive: true,
                 maintainAspectRatio: false,
                 cutout: '70%',
+                onClick: (event, activeElements, chartInstance) => {
+                    if (activeElements && activeElements.length > 0) {
+                        const clickedElementIndex = activeElements[0].index;
+                        const label = chartInstance.data.labels[clickedElementIndex];
+                        if (label && label !== 'データなし') {
+                            const catLabel = label.split(':')[0].trim();
+                            const catKey = Object.keys(categoryMeta).find(k => categoryMeta[k].label === catLabel);
+                            if (catKey) {
+                                showCategoryItems(catKey);
+                            }
+                        }
+                    }
+                },
                 plugins: {
                     legend: {
                         position: 'bottom',
@@ -1848,7 +2008,7 @@ function updateAnalyticsView() {
                 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td style="display:flex;align-items:center;gap:8px;"><span class="cat-dot" style="background-color:${meta.color}"></span>${meta.label}</td>
+                    <td style="display:flex;align-items:center;gap:8px;cursor:pointer;text-decoration:underline;text-underline-offset:3px;" onclick="showCategoryItems('${sc.key}')"><span class="cat-dot" style="background-color:${meta.color}"></span>${meta.label}</td>
                     <td style="text-align:right;">¥${sc.spent.toLocaleString()}</td>
                     <td style="text-align:right;color:var(--text-muted);">${budgetVal > 0 ? '¥' + budgetVal.toLocaleString() : '未設定'}</td>
                     <td style="text-align:right;font-weight:700;" class="${isOver ? 'text-red-500' : ''}">${percentText}</td>
@@ -2424,6 +2584,17 @@ function setupEventListeners() {
     // 12. Budget Trend Start Month Selector Change Event
     if (el('budgetTrendStartMonth')) {
         el('budgetTrendStartMonth').addEventListener('change', updateBudgetTrendChart);
+    }
+    
+    // 13. Category items popup modal sort change & close events
+    if (el('categoryItemsSort')) {
+        el('categoryItemsSort').addEventListener('change', renderCategoryItems);
+    }
+    if (el('closeCategoryItemsBtn')) {
+        el('closeCategoryItemsBtn').addEventListener('click', () => closeModal('categoryItemsModal'));
+    }
+    if (el('closeCategoryItemsModalBtn')) {
+        el('closeCategoryItemsModalBtn').addEventListener('click', () => closeModal('categoryItemsModal'));
     }
 }
 
