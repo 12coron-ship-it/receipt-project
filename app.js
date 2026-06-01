@@ -2093,6 +2093,46 @@ function updateAnalyticsView() {
                 }
             }
         });
+
+        // グラフ下部の動的凡例（カテゴリ色＋具体的な金額）の生成
+        const legendContainer = el('trendChartLegend');
+        if (legendContainer) {
+            legendContainer.innerHTML = '';
+            const categoryTotals = {};
+            catKeys.forEach(k => categoryTotals[k] = 0);
+            
+            datasetTxns.forEach(t => {
+                t.items.forEach(item => {
+                    const cat = item.category || 'others';
+                    if (categoryTotals[cat] !== undefined) {
+                        categoryTotals[cat] += item.price;
+                    }
+                });
+            });
+
+            Object.entries(categoryMeta).forEach(([key, meta]) => {
+                const spent = categoryTotals[key] || 0;
+                if (spent > 0) {
+                    const legendItem = document.createElement('div');
+                    legendItem.style.display = 'inline-flex';
+                    legendItem.style.alignItems = 'center';
+                    legendItem.style.gap = '6px';
+                    legendItem.style.fontSize = '0.78rem';
+                    legendItem.style.background = 'rgba(255, 255, 255, 0.03)';
+                    legendItem.style.border = '1px solid var(--card-border)';
+                    legendItem.style.padding = '4px 10px';
+                    legendItem.style.borderRadius = '50px';
+                    legendItem.style.cursor = 'pointer';
+                    legendItem.addEventListener('click', () => showCategoryItems(key));
+                    legendItem.innerHTML = `
+                        <span class="cat-dot" style="background-color: ${meta.color}; width:8px; height:8px; border-radius:50%; display:inline-block;"></span>
+                        <span style="font-weight:600; color:var(--text-main);">${meta.label}</span>
+                        <span style="color:var(--text-muted); font-size:0.72rem;">¥${spent.toLocaleString()}</span>
+                    `;
+                    legendContainer.appendChild(legendItem);
+                }
+            });
+        }
     }
     
     // Update category analysis table
