@@ -3532,7 +3532,7 @@ function updateRecurringTrendChart() {
     
     const chartType = el('recurringChartType')?.value || 'bar';
     
-    const datasets = [];
+    let datasets = [];
     const catKeys = Object.keys(categoryMeta).reverse();
     
     catKeys.forEach(k => {
