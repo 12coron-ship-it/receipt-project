@@ -2635,6 +2635,91 @@ function resetRecurringConfigForm() {
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
+// 24.5. JSON Database Backups (Backup & Restore)
+function exportJSONBackup() {
+    if (transactions.length === 0 && budgets.length === 0 && recurringExpenses.length === 0) {
+        showToast('エクスポートするデータがありません。', 'error');
+        return;
+    }
+    
+    const backupData = {
+        transactions: transactions,
+        budgets: budgets,
+        recurringExpenses: recurringExpenses
+    };
+    
+    const jsonString = JSON.stringify(backupData, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    
+    const now = new Date();
+    const dateStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+    link.download = `smartreceipt_all_backup_${dateStr}.json`;
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    showToast('JSONバックアップデータを出力しました。', 'success');
+}
+
+function importJSONBackup(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        try {
+            const data = JSON.parse(event.target.result);
+            
+            if (!data || typeof data !== 'object') {
+                throw new Error('無効なJSONオブジェクトです。');
+            }
+            
+            const hasTxns = Array.isArray(data.transactions);
+            const hasBudgets = Array.isArray(data.budgets);
+            const hasRecurring = Array.isArray(data.recurringExpenses);
+            
+            if (!hasTxns && !hasBudgets && !hasRecurring) {
+                throw new Error('有効なリスト（履歴・予算・固定費）が含まれていません。');
+            }
+            
+            if (!confirm('バックアップデータを復元します。現在の履歴・予算・固定費設定はすべて上書きされますが、よろしいですか？')) {
+                e.target.value = '';
+                return;
+            }
+            
+            if (hasTxns) {
+                transactions = data.transactions;
+                saveData('transactions');
+            }
+            if (hasBudgets) {
+                budgets = data.budgets;
+                saveData('budgets');
+            }
+            if (hasRecurring) {
+                recurringExpenses = data.recurringExpenses;
+                saveData('recurring');
+            }
+            
+            showToast('データを正常に復元しました。画面を再読み込みします...', 'success');
+            closeModal('settingsModal');
+            
+            setTimeout(() => {
+                window.location.reload();
+            }, 1200);
+            
+        } catch (err) {
+            console.error('JSON backup import error:', err);
+            showToast('バックアップの復元に失敗しました。ファイルが破損しているか、無効なファイルです。', 'error');
+        }
+        
+        e.target.value = '';
+    };
+    reader.readAsText(file);
+}
+
 // 25. CSV Backups System
 function exportCSV() {
     if (transactions.length === 0) {
@@ -2774,12 +2859,19 @@ function importCSV(e) {
 
 // 25. DOM Event bindings safely setup
 function setupEventListeners() {
-    // 1. API key settings modal toggles
+    // 1. System settings modal toggles
     if (el('openSettingsBtn')) el('openSettingsBtn').addEventListener('click', () => openModal('settingsModal'));
     if (el('closeSettingsBtn')) el('closeSettingsBtn').addEventListener('click', () => closeModal('settingsModal'));
     if (el('saveApiKeyBtn')) el('saveApiKeyBtn').addEventListener('click', saveApiKey);
     if (el('clearApiKeyBtn')) el('clearApiKeyBtn').addEventListener('click', clearApiKey);
     if (el('resetDbBtn')) el('resetDbBtn').addEventListener('click', resetDatabase);
+    
+    // JSON backup/restore button click listeners
+    if (el('exportJsonBackupBtn')) el('exportJsonBackupBtn').addEventListener('click', exportJSONBackup);
+    if (el('importJsonBackupBtn')) el('importJsonBackupBtn').addEventListener('click', () => {
+        if (el('jsonFileInput')) el('jsonFileInput').click();
+    });
+    if (el('jsonFileInput')) el('jsonFileInput').addEventListener('change', importJSONBackup);
     
     // Theme toggle button click listener
     if (el('themeToggleBtn')) {
