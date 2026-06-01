@@ -686,7 +686,7 @@ select {
 .budget-overall-card {
   background: var(--bg-inset);
   border: 1px solid var(--card-border);
-  padding: 16px;
+  padding: 12px;
   border-radius: var(--radius-md);
 }
 
@@ -725,10 +725,10 @@ select {
 }
 
 .category-budgets-list {
-  margin-top: 16px;
+  margin-top: 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 4px;
 }
 
 .dashboard-stats {
@@ -764,34 +764,34 @@ select {
   color: var(--primary);
 }
 
-/* Category budget layout */
+/* Category budget layout (Compact 1-row layout) */
 .dashboard-category-budget-row {
-  background: var(--bg-inset);
-  border: 1px solid var(--card-border);
-  border-radius: var(--radius-sm);
-  padding: 10px 14px;
+  display: grid;
+  grid-template-columns: 120px 1fr 130px;
+  gap: 12px;
+  align-items: center;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--card-border);
+  padding: 6px 4px;
   cursor: pointer;
   transition: var(--transition-fast);
 }
 
 .dashboard-category-budget-row:hover {
-  border-color: var(--card-border-glow);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), var(--glow-primary);
-  transform: translateY(-1px);
+  border-bottom-color: var(--primary);
+  background: rgba(255, 255, 255, 0.02);
 }
 
-.dashboard-category-budget-info {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.78rem;
-  margin-bottom: 6px;
+body.light-mode .dashboard-category-budget-row:hover {
+  background: rgba(0, 0, 0, 0.02);
 }
 
 .cat-label-indicator {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  min-width: 0;
 }
 
 .cat-dot {
@@ -799,13 +799,12 @@ select {
   height: 8px;
   border-radius: 50%;
   display: inline-block;
+  flex-shrink: 0;
 }
 
 .cat-rem-text {
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   color: var(--text-muted);
-  text-align: right;
-  margin-top: 4px;
 }
 
 /* ----------------------------------------------------------
@@ -1918,6 +1917,18 @@ select {
   #themeToggleBtn {
     margin: 0;
     flex-shrink: 0;
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: var(--radius-sm) !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  
+  #themeToggleBtn svg {
+    width: 18px !important;
+    height: 18px !important;
   }
   
   .header-actions {
@@ -1996,6 +2007,8 @@ select {
     position: absolute;
     top: 6px;
     right: 4px;
+    width: 32px !important;
+    height: 32px !important;
     background: rgba(239, 68, 68, 0.1) !important;
     border-color: var(--danger) !important;
   }
@@ -2106,6 +2119,12 @@ select {
   
   .budget-row-input-wrapper {
     width: 110px;
+  }
+
+  .dashboard-category-budget-row {
+    grid-template-columns: 95px 1fr 105px;
+    gap: 8px;
+    padding: 6px 0;
   }
 }
 

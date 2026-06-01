@@ -13,7 +13,7 @@ const categoryMeta = {
     utilities: { label: '水道光熱・通信', class: 'utilities', color: '#06B6D4' },
     mortgage: { label: '住宅ローン・家賃', class: 'mortgage', color: '#6366F1' },
     insurance: { label: '保険料', class: 'insurance', color: '#14B8A6' },
-    medical: { label: '医療費', class: 'medical', color: '#F43F5E' },
+    medical: { label: '健康・医療費', class: 'medical', color: '#F43F5E' },
     education: { label: '教育', class: 'education', color: '#A855F7' },
     transport: { label: '交通費', class: 'transport', color: '#3B82F6' },
     social: { label: '交際費', class: 'social', color: '#EC4899' },
@@ -988,20 +988,22 @@ function renderCategoryBudgetList(monthlyTxns, activeBudget) {
             
             const row = document.createElement('div');
             row.className = 'dashboard-category-budget-row';
-            row.style.cursor = 'pointer';
             row.addEventListener('click', () => showCategoryItems(key));
             row.innerHTML = `
-                <div class="dashboard-category-budget-info">
-                    <span class="cat-label-indicator">
-                        <span class="cat-dot" style="background-color: ${meta.color}"></span>
-                        <span style="font-weight:600;">${meta.label}</span>
-                    </span>
-                    <span>${spent.toLocaleString()} / ${budget > 0 ? budget.toLocaleString() + '円' : '未設定'}</span>
+                <div class="cat-label-indicator">
+                    <span class="cat-dot" style="background-color: ${meta.color}"></span>
+                    <span style="font-weight:600; font-size:0.8rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${meta.label}</span>
                 </div>
-                <div class="progress-bar-container" style="height:6px;">
+                <div class="progress-bar-container" style="height:6px; margin:0;">
                     <div class="progress-bar-fill ${progressClass}" style="width: ${percent}%; background-color: ${progressClass ? '' : meta.color}"></div>
                 </div>
-                <div class="cat-rem-text ${spent > budget && budget > 0 ? 'text-red-500 font-bold' : ''}">${remText}</div>
+                <div class="cat-budget-values-wrapper" style="text-align:right; font-size:0.76rem; display:flex; flex-direction:column; line-height:1.25; min-width:0;">
+                    <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                        <span style="font-weight:700; color:var(--text-main);">${spent.toLocaleString()}</span>
+                        <span style="color:var(--text-muted); font-size:0.68rem;">/ ${budget > 0 ? budget.toLocaleString() : '無'}</span>
+                    </div>
+                    <div class="cat-rem-text ${spent > budget && budget > 0 ? 'text-red-500 font-bold' : ''}" style="font-size:0.65rem; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${remText}</div>
+                </div>
             `;
             container.appendChild(row);
         }
@@ -1324,7 +1326,17 @@ function addEditorItemRow(name = '', price = 0, discount = 0, category = 'others
         <button class="btn-icon" style="color:var(--text-muted);" title="削除"><i data-lucide="trash-2"></i></button>
     `;
     
-    // Bind auto calculations
+    
+    // Bind auto calculations and dynamic category coloring
+    const selectEl = row.querySelector('.item-category');
+    const updateSelectColor = () => {
+        const cat = selectEl.value;
+        const meta = categoryMeta[cat] || categoryMeta.others;
+        selectEl.style.borderLeft = `4px solid ${meta.color}`;
+    };
+    selectEl.addEventListener('change', updateSelectColor);
+    updateSelectColor();
+
     row.querySelector('.item-price').addEventListener('input', calculateTotalFromItems);
     row.querySelector('.item-discount').addEventListener('input', calculateTotalFromItems);
     row.querySelector('button').addEventListener('click', () => {
@@ -1561,7 +1573,7 @@ async function callScanApi(base64Data, mimeType) {
                                 "- dining (外食費): Restaurant bills, cafe drinks/food, fast food, takeout lunches, food court, and dining out.\n" +
                                 "- shopping (日用品・買い物): Toilet paper, tissues, laundry detergent, shampoo, cosmetics, stationeries, trash bags, kitchen goods.\n" +
                                 "- transport (交通費): Train tickets, IC cards top-up, bus, taxi, parking fees.\n" +
-                                "- medical (医療費): Medicines, hospital checkups, clinic fees, masks, vitamins.\n" +
+                                "- medical (健康・医療費): Medicines, hospital checkups, clinic fees, masks, vitamins.\n" +
                                 "- clothing (衣服): Apparel, shoes, accessories.\n" +
                                 "- furniture (家具・家電): Furniture, home electronics, light bulbs.\n" +
                                 "- utilities (水道光熱・通信): Electricity, gas, water, internet, phone bills.\n" +
