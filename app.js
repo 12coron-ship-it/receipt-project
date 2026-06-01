@@ -92,6 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
         initTabNavigation();
         initMonthSelector();
         initCharts();
+        initSwipeNavigation();
         
         setupEventListeners();
         
@@ -525,6 +526,103 @@ function initTabNavigation() {
             }
         });
     });
+}
+
+function initSwipeNavigation() {
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchEndX = 0;
+    let touchEndY = 0;
+    
+    // スワイプ判定の最小横移動距離 (80px)
+    const minSwipeDistance = 80;
+    // 縦スクロールと誤認させないための最大縦移動距離 (60px)
+    const maxSwipeVerticalDistance = 60;
+
+    document.addEventListener('touchstart', (e) => {
+        // モーダル表示中、カメラ起動中、および入力フォーカス中は誤作動防止のためスワイプを無効化
+        if (document.querySelector('.modal-overlay.active') || 
+            document.querySelector('.camera-view-overlay.active') ||
+            document.activeElement.tagName === 'INPUT' || 
+            document.activeElement.tagName === 'SELECT' || 
+            document.activeElement.tagName === 'TEXTAREA') {
+            return;
+        }
+        
+        // カレンダーグリッドやサムネイルコンテナ等、個別のスクロールが必要な領域もスワイプ除外
+        if (e.target.closest('#dropzone') || 
+            e.target.closest('#capturedThumbsContainer') || 
+            e.target.closest('.calendarGrid') ||
+            e.target.closest('.history-list') ||
+            e.target.closest('#trendChart') ||
+            e.target.closest('#budgetTrendChart')) {
+            return;
+        }
+
+        touchStartX = e.changedTouches[0].screenX;
+        touchStartY = e.changedTouches[0].screenY;
+    }, { passive: true });
+
+    document.addEventListener('touchend', (e) => {
+        if (document.querySelector('.modal-overlay.active') || 
+            document.querySelector('.camera-view-overlay.active') ||
+            document.activeElement.tagName === 'INPUT' || 
+            document.activeElement.tagName === 'SELECT' || 
+            document.activeElement.tagName === 'TEXTAREA') {
+            return;
+        }
+        
+        if (e.target.closest('#dropzone') || 
+            e.target.closest('#capturedThumbsContainer') || 
+            e.target.closest('.calendarGrid') ||
+            e.target.closest('.history-list') ||
+            e.target.closest('#trendChart') ||
+            e.target.closest('#budgetTrendChart')) {
+            return;
+        }
+
+        touchEndX = e.changedTouches[0].screenX;
+        touchEndY = e.changedTouches[0].screenY;
+
+        handleSwipeGesture();
+    }, { passive: true });
+
+    function handleSwipeGesture() {
+        const deltaX = touchEndX - touchStartX;
+        const deltaY = Math.abs(touchEndY - touchStartY);
+
+        // 横スワイプ距離が十分かつ、縦移動が少ない場合のみスワイプと判定
+        if (Math.abs(deltaX) > minSwipeDistance && deltaY < maxSwipeVerticalDistance) {
+            const tabs = ['dashboard', 'analytics', 'budgets'];
+            const activeTabEl = document.querySelector('.nav-tab.active');
+            if (!activeTabEl) return;
+            
+            const currentTab = activeTabEl.getAttribute('data-tab');
+            const currentIndex = tabs.indexOf(currentTab);
+            if (currentIndex === -1) return;
+
+            let nextIndex = currentIndex;
+            
+            if (deltaX < 0) {
+                // 左スワイプ（右から左） -> 次のタブへ
+                if (currentIndex < tabs.length - 1) {
+                    nextIndex = currentIndex + 1;
+                }
+            } else {
+                // 右スワイプ（左から右） -> 前のタブへ
+                if (currentIndex > 0) {
+                    nextIndex = currentIndex - 1;
+                }
+            }
+
+            if (nextIndex !== currentIndex) {
+                const targetTabBtn = document.querySelector(`.nav-tab[data-tab="${tabs[nextIndex]}"]`);
+                if (targetTabBtn) {
+                    targetTabBtn.click();
+                }
+            }
+        }
+    }
 }
 
 // 10. Month Select Navigation
@@ -1285,7 +1383,7 @@ function startManualInputForm() {
     const list = el('itemsList');
     if (list) {
         list.innerHTML = '';
-        addEditorItemRow('', 0, 0, 'others');
+        addEditorItemRow('', 0, 0, 'food');
     }
     
     setTimeout(() => {
@@ -1300,7 +1398,7 @@ function cancelEditor() {
 }
 window.cancelEditor = cancelEditor;
 
-function addEditorItemRow(name = '', price = 0, discount = 0, category = 'others') {
+function addEditorItemRow(name = '', price = 0, discount = 0, category = 'food') {
     const container = el('itemsList');
     if (!container) return;
     
@@ -1314,7 +1412,6 @@ function addEditorItemRow(name = '', price = 0, discount = 0, category = 'others
     
     row.innerHTML = `
         <input type="text" class="item-name" placeholder="品名" value="${name}">
-        <select class="item-category">${selectOptions}</select>
         <div class="item-price-field">
             <label class="mobile-field-label">単価 (¥)</label>
             <input type="number" class="item-price" placeholder="単価" value="${price}" min="0">
@@ -1323,6 +1420,7 @@ function addEditorItemRow(name = '', price = 0, discount = 0, category = 'others
             <label class="mobile-field-label">割引 (¥)</label>
             <input type="number" class="item-discount" placeholder="割引" value="${discount}" min="0">
         </div>
+        <select class="item-category">${selectOptions}</select>
         <button class="btn-icon" style="color:var(--text-muted);" title="削除"><i data-lucide="trash-2"></i></button>
     `;
     
@@ -1465,7 +1563,7 @@ async function processSingleReceipt(file) {
             if (res.items && res.items.length) {
                 res.items.forEach(item => addEditorItemRow(item.name, item.price, item.discount || 0, item.category));
             } else {
-                addEditorItemRow('レシート品目', res.total - (res.tax || 0), 0, 'others');
+                addEditorItemRow('レシート品目', res.total - (res.tax || 0), 0, 'food');
             }
         }
     } catch (err) {

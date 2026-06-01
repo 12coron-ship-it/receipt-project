@@ -495,7 +495,7 @@ select {
 
 .items-header {
   display: grid;
-  grid-template-columns: 3.5fr 2.5fr 2fr 2fr 36px;
+  grid-template-columns: 3.5fr 2fr 2fr 2.5fr 36px;
   gap: 10px;
   padding: 8px 10px;
   font-size: 0.74rem;
@@ -506,7 +506,7 @@ select {
 
 .item-row {
   display: grid;
-  grid-template-columns: 3.5fr 2.5fr 2fr 2fr 36px;
+  grid-template-columns: 3.5fr 2fr 2fr 2.5fr 36px;
   gap: 10px;
   align-items: center;
   padding: 8px 10px;
@@ -1924,11 +1924,18 @@ body.light-mode .dashboard-category-budget-row:hover {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
+    padding: 0 !important;
   }
   
   #themeToggleBtn svg {
     width: 18px !important;
     height: 18px !important;
+  }
+
+  #categoryItemsSort {
+    font-size: 0.75rem !important;
+    padding: 4px 20px 4px 8px !important;
+    height: 28px !important;
   }
   
   .header-actions {
@@ -2126,6 +2133,19 @@ body.light-mode .dashboard-category-budget-row:hover {
     gap: 8px;
     padding: 6px 0;
   }
+
+  /* モバイルでも日付・消費税・合計金額を3列1行にする */
+  #editorPanel .form-group-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+  #editorPanel .form-group-grid .form-group:nth-child(1) {
+    grid-column: span 3 !important;
+  }
+  #editorPanel .form-group-grid .form-group:nth-child(2),
+  #editorPanel .form-group-grid .form-group:nth-child(3),
+  #editorPanel .form-group-grid .form-group:nth-child(4) {
+    grid-column: span 1 !important;
+  }
 }
 
 /* ============================================================
@@ -2231,8 +2251,13 @@ body.light-mode .dashboard-category-budget-row:hover {
   padding-bottom: 8px;
 }
 #editorPanel .form-group-grid {
-  margin-bottom: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 10px;
+  margin-bottom: 8px;
+}
+#editorPanel .form-group-grid .form-group:nth-child(1) {
+  grid-column: span 3;
 }
 #editorPanel .form-group {
   gap: 4px;
@@ -2260,5 +2285,12 @@ body.light-mode .dashboard-category-budget-row:hover {
 }
 #editorPanel .modal-footer {
   padding-top: 10px;
+}
+
+/* カテゴリ選択セレクトボックスの文字サイズを周り（他インプット）に合わせすっきりさせる */
+.item-category {
+  font-size: 0.8rem !important;
+  padding: 8px 24px 8px 10px !important;
+  height: 38px;
 }
 
