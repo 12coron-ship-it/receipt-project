@@ -1411,6 +1411,7 @@ function addEditorItemRow(name = '', price = 0, discount = 0, category = 'food')
     });
     
     row.innerHTML = `
+        <select class="item-category">${selectOptions}</select>
         <input type="text" class="item-name" placeholder="品名" value="${name}">
         <div class="item-price-field">
             <label class="mobile-field-label">単価 (¥)</label>
@@ -1420,7 +1421,6 @@ function addEditorItemRow(name = '', price = 0, discount = 0, category = 'food')
             <label class="mobile-field-label">割引 (¥)</label>
             <input type="number" class="item-discount" placeholder="割引" value="${discount}" min="0">
         </div>
-        <select class="item-category">${selectOptions}</select>
         <button class="btn-icon" style="color:var(--text-muted);" title="削除"><i data-lucide="trash-2"></i></button>
     `;
     
@@ -2122,7 +2122,7 @@ function updateAnalyticsView() {
                     legendItem.style.display = 'inline-flex';
                     legendItem.style.alignItems = 'center';
                     legendItem.style.gap = '5px';
-                    legendItem.style.fontSize = '0.7rem';
+                    legendItem.style.fontSize = '0.62rem';
                     legendItem.style.color = 'var(--text-muted)';
                     legendItem.style.cursor = 'pointer';
                     legendItem.style.padding = '2px 4px';
@@ -2131,7 +2131,7 @@ function updateAnalyticsView() {
                         <span class="cat-dot" style="background-color: ${meta.color}; width:6px; height:6px; border-radius:50%; display:inline-block;"></span>
                         <span style="font-weight:600; color:var(--text-main);">${meta.label}:</span>
                         <span style="color:var(--text-main);">¥${spent.toLocaleString()}</span>
-                        <span style="font-size:0.65rem; color:var(--text-muted);">(${pct}%)</span>
+                        <span style="font-size:0.58rem; color:var(--text-muted); font-weight:normal;">(${pct}%)</span>
                     `;
                     legendContainer.appendChild(legendItem);
                 }

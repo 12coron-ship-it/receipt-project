@@ -514,7 +514,7 @@ select {
 
 .items-header {
   display: grid;
-  grid-template-columns: 3.5fr 2fr 2fr 2.5fr 36px;
+  grid-template-columns: 1.8fr 4.2fr 2fr 2fr 36px;
   gap: 10px;
   padding: 8px 10px;
   font-size: 0.74rem;
@@ -525,7 +525,7 @@ select {
 
 .item-row {
   display: grid;
-  grid-template-columns: 3.5fr 2fr 2fr 2.5fr 36px;
+  grid-template-columns: 1.8fr 4.2fr 2fr 2fr 36px;
   gap: 10px;
   align-items: center;
   padding: 8px 10px;
@@ -2000,7 +2000,7 @@ body.light-mode .dashboard-category-budget-row:hover {
 
   .items-header {
     display: grid !important;
-    grid-template-columns: 2.2fr 1.1fr 1.1fr 1.8fr 32px !important;
+    grid-template-columns: 1.2fr 2.8fr 1.1fr 1.1fr 32px !important;
     gap: 4px !important;
     padding: 6px 4px !important;
     font-size: 0.65rem !important;
@@ -2008,7 +2008,7 @@ body.light-mode .dashboard-category-budget-row:hover {
 
   .item-row {
     display: grid !important;
-    grid-template-columns: 2.2fr 1.1fr 1.1fr 1.8fr 32px !important;
+    grid-template-columns: 1.2fr 2.8fr 1.1fr 1.1fr 32px !important;
     gap: 4px !important;
     padding: 6px 4px !important;
     align-items: center !important;
@@ -2198,6 +2198,11 @@ body.light-mode .dashboard-category-budget-row:hover {
   #editorPanel .form-group-grid .form-group:nth-child(4) {
     grid-column: span 1 !important;
   }
+  #editorPanel .form-group input,
+  #editorPanel .form-group select {
+    font-size: 0.78rem !important;
+    padding: 6px 10px;
+  }
 }
 
 /* ============================================================
@@ -2322,6 +2327,10 @@ body.light-mode .dashboard-category-budget-row:hover {
 }
 #editorPanel .form-group label {
   font-size: 0.72rem;
+}
+#editorPanel .form-group input,
+#editorPanel .form-group select {
+  font-size: 0.82rem;
 }
 #editorPanel .form-section-label {
   margin-bottom: 6px;
