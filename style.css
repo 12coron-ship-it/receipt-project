@@ -607,10 +607,21 @@ select {
   background: rgba(99, 102, 241, 0.08);
 }
 
+.item-row .btn-icon {
+  width: 100%;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-input);
+  color: var(--text-muted);
+  transition: var(--transition-fast);
+}
+
 .item-row .btn-icon:hover {
   border-color: var(--danger);
   color: var(--danger);
   background: rgba(239, 68, 68, 0.1);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);
 }
 
 .btn-icon-only {
@@ -2188,5 +2199,47 @@ select {
   border-color: var(--primary);
   color: #fff;
   box-shadow: 0 0 12px var(--primary-glow);
+}
+
+/* ============================================================
+   25. Editor Modal Layout Compaction
+   ============================================================ */
+#editorPanel .modal-card {
+  padding: 16px 20px;
+}
+#editorPanel .modal-header {
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+}
+#editorPanel .form-group-grid {
+  margin-bottom: 8px;
+  gap: 10px;
+}
+#editorPanel .form-group {
+  gap: 4px;
+}
+#editorPanel .form-group label {
+  font-size: 0.72rem;
+}
+#editorPanel .form-section-label {
+  margin-bottom: 6px;
+  font-size: 0.78rem;
+}
+#editorPanel .items-list-container {
+  margin-top: 6px;
+  margin-bottom: 12px;
+}
+#editorPanel .items-header {
+  padding: 4px 10px;
+}
+#editorPanel .item-row {
+  padding: 4px 10px;
+}
+#editorPanel .btn-add-item {
+  margin-top: 8px;
+  padding: 8px 16px;
+}
+#editorPanel .modal-footer {
+  padding-top: 10px;
 }
 
