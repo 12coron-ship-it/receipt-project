@@ -1287,7 +1287,7 @@ function renderCategoryBudgetList(monthlyTxns, activeBudget) {
                     <span style="font-weight:600; font-size:0.8rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${meta.label}</span>
                 </div>
                 <div class="progress-bar-container" style="height:6px; margin:0;">
-                    <div class="progress-bar-fill ${progressClass}" style="width: ${percent}%; background-color: ${progressClass ? '' : meta.color}"></div>
+                    <div class="progress-bar-fill ${progressClass}" style="width: ${percent}%;"></div>
                 </div>
                 <div class="cat-budget-values-wrapper" style="text-align:right; font-size:0.76rem; display:flex; flex-direction:column; line-height:1.25; min-width:0;">
                     <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
