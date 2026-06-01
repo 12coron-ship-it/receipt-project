@@ -2372,7 +2372,7 @@ body.light-mode .dashboard-category-budget-row:hover {
 
 @media (max-width: 600px) {
   .doughnut-chart-container {
-    max-width: 340px;
+    max-width: 100%;
     height: 180px;
   }
 }

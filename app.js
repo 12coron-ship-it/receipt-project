@@ -111,9 +111,28 @@ function hideChartOfflinePlaceholder(canvas) {
     canvas.style.display = 'block';
 }
 
+function updateVersionLabel() {
+    const versionLabel = qs('.version-label');
+    if (!versionLabel) return;
+    try {
+        const lastMod = new Date(document.lastModified);
+        if (!isNaN(lastMod.getTime())) {
+            const yy = String(lastMod.getFullYear()).slice(-2);
+            const mm = String(lastMod.getMonth() + 1).padStart(2, '0');
+            const dd = String(lastMod.getDate()).padStart(2, '0');
+            const hh = String(lastMod.getHours()).padStart(2, '0');
+            const min = String(lastMod.getMinutes()).padStart(2, '0');
+            versionLabel.textContent = `v${yy}${mm}${dd}.${hh}${min}`;
+        }
+    } catch (e) {
+        console.error("Failed to parse document.lastModified:", e);
+    }
+}
+
 // 3. Application Lifecycle
 document.addEventListener('DOMContentLoaded', () => {
     try {
+        updateVersionLabel();
         loadSettings();
         loadData();
         
@@ -1985,6 +2004,43 @@ async function processCapturedBatches() {
 }
 
 // 21. Chart Rendering Logic
+const centerTextPlugin = {
+    id: 'centerText',
+    afterDraw: (chart) => {
+        if (chart.config.type !== 'doughnut') return;
+        const datasets = chart.config.data.datasets;
+        if (!datasets || datasets.length === 0) return;
+        const labels = chart.config.data.labels;
+        let totalVal = 0;
+        if (labels && labels[0] !== 'データなし') {
+            totalVal = datasets[0].data.reduce((sum, val) => sum + val, 0);
+        }
+        const text = '¥' + totalVal.toLocaleString();
+        const { ctx, chartArea: { left, right, top, bottom, width, height } } = chart;
+        ctx.save();
+        const meta = chart.getDatasetMeta(0);
+        let centerX, centerY;
+        if (meta.data && meta.data[0]) {
+            centerX = meta.data[0].x;
+            centerY = meta.data[0].y;
+        } else {
+            centerX = left + width / 2;
+            centerY = top + height / 2;
+        }
+        const isLight = (localStorage.getItem('smartreceipt_theme') || 'dark') === 'light';
+        ctx.fillStyle = isLight ? '#1F2937' : '#F3F4F6';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        ctx.font = '500 9px "Plus Jakarta Sans", sans-serif';
+        ctx.fillText('合計支出', centerX, centerY - 8);
+        
+        ctx.font = '700 13px "Outfit", sans-serif';
+        ctx.fillText(text, centerX, centerY + 8);
+        ctx.restore();
+    }
+};
+
 function initCharts() {
     categoryDoughnutCharts = [];
     
@@ -2045,10 +2101,10 @@ function initCharts() {
                         position: 'right',
                         align: 'center',
                         labels: {
-                            boxWidth: 8,
+                            boxWidth: 6,
                             color: getChartTextColor(),
-                            font: { size: 9, family: 'Plus Jakarta Sans' },
-                            padding: 6
+                            font: { size: 8, family: 'Plus Jakarta Sans' },
+                            padding: 4
                         }
                     },
                     tooltip: {
@@ -2066,7 +2122,8 @@ function initCharts() {
                         }
                     }
                 }
-            }
+            },
+            plugins: [centerTextPlugin]
         });
         categoryDoughnutCharts.push(chart);
     });
@@ -2381,10 +2438,16 @@ function renderRankings(datasetTxns) {
     const itemsList = el('topExpensiveItemsList');
     const storesList = el('topStoresList');
     
+    const filterSelect = el('rankingFixedCostFilter');
+    const filterVal = filterSelect ? filterSelect.value : 'include';
+    
     if (itemsList) {
         itemsList.innerHTML = '';
         let allItems = [];
         datasetTxns.forEach(t => {
+            if (filterVal === 'exclude' && t.isRecurring) {
+                return;
+            }
             t.items.forEach(i => {
                 allItems.push({ name: i.name, price: i.price, date: t.date, store: t.storeName, category: i.category, txnId: t.id });
             });
@@ -3008,6 +3071,11 @@ function setupEventListeners() {
     }
     if (el('fileInput')) el('fileInput').addEventListener('change', handleFileUpload);
     
+    // 2.5 High spending ranking fixed cost filter
+    if (el('rankingFixedCostFilter')) {
+        el('rankingFixedCostFilter').addEventListener('change', updateAnalyticsView);
+    }
+    
     // 4. Quick Actions
     if (el('manualInputBtn')) el('manualInputBtn').addEventListener('click', startManualInputForm);
     if (el('startCameraBtn')) el('startCameraBtn').addEventListener('click', startContinuousCamera);
@@ -3515,7 +3583,7 @@ function sortAnalyticsTable(key) {
         analyticsTableSortOrder = (analyticsTableSortOrder === 'desc') ? 'asc' : 'desc';
     } else {
         analyticsTableSortKey = key;
-        analyticsTableSortOrder = 'desc';
+        analyticsTableSortOrder = key === 'category' ? 'asc' : 'desc';
     }
     updateAnalyticsView();
 }

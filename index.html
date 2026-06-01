@@ -17,7 +17,7 @@
     <div class="logo" style="display:flex; align-items:center; gap:12px;">
       <i data-lucide="receipt"></i> Smart<span>Receipt</span>
       <div id="apiKeyStatus" class="api-key-badge disconnected" style="font-size:0.74rem; padding: 4px 10px; margin-left:8px;"><i data-lucide="info"></i> デモモード</div>
-      <span class="version-label" style="font-size: 0.58rem; color: var(--text-muted); margin-left: 8px; font-family: monospace; white-space: nowrap; line-height: 1;">v260601.2123</span>
+      <span class="version-label" style="font-size: 0.58rem; color: var(--text-muted); margin-left: 8px; font-family: monospace; white-space: nowrap; line-height: 1;">v--</span>
     </div>
     <button id="themeToggleBtn" class="btn btn-secondary btn-icon" title="テーマ切り替え">
       <i data-lucide="sun"></i>
@@ -214,7 +214,13 @@
       <!-- Right Column: Rankings & Share Chart -->
       <div class="analytics-right-col">
         <div class="glass-panel ranking-card-panel">
-          <h3 class="panel-title-sub"><i data-lucide="award" style="color:#F59E0B;"></i> 高額支出ランキング (TOP 10)</h3>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+            <h3 class="panel-title-sub" style="margin-bottom: 0;"><i data-lucide="award" style="color:#F59E0B;"></i> 高額支出ランキング (TOP 10)</h3>
+            <select id="rankingFixedCostFilter" style="padding: 2px 20px 2px 6px; font-size: 0.68rem; height: 24px; background-color: rgba(255,255,255,0.05); border: 1px solid var(--card-border); color: var(--text-main); border-radius: 4px; outline: none; cursor: pointer;">
+              <option value="include">固定費を含む</option>
+              <option value="exclude">固定費を除く</option>
+            </select>
+          </div>
           <ol class="ranking-list" id="topExpensiveItemsList"></ol>
         </div>
         <div class="glass-panel ranking-card-panel">
