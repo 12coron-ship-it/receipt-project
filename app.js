@@ -596,6 +596,7 @@ function initTabNavigation() {
                 renderBudgetsList();
                 renderRecurringList();
                 updateBudgetTrendChart();
+                updateRecurringTrendChart();
             } else if (selectedTab === 'dashboard') {
                 updateDashboard();
             }
@@ -921,7 +922,10 @@ function refreshCurrentTabState() {
     if (activeView) {
         if (activeView.id === 'dashboardView') updateDashboard();
         if (activeView.id === 'analyticsView') updateAnalyticsView();
-        if (activeView.id === 'budgetsView') updateBudgetTrendChart();
+        if (activeView.id === 'budgetsView') {
+            updateBudgetTrendChart();
+            updateRecurringTrendChart();
+        }
     }
 }
 
@@ -2016,11 +2020,15 @@ const centerTextPlugin = {
             totalVal = datasets[0].data.reduce((sum, val) => sum + val, 0);
         }
         const text = '¥' + totalVal.toLocaleString();
-        const { ctx, chartArea: { left, right, top, bottom, width, height } } = chart;
+        
+        const { ctx, chartArea } = chart;
+        if (!chartArea) return;
+        const { left, right, top, bottom, width, height } = chartArea;
+        
         ctx.save();
-        const meta = chart.getDatasetMeta(0);
+        const meta = chart.getDatasetMeta ? chart.getDatasetMeta(0) : null;
         let centerX, centerY;
-        if (meta.data && meta.data[0]) {
+        if (meta && meta.data && meta.data[0] && typeof meta.data[0].x === 'number' && typeof meta.data[0].y === 'number') {
             centerX = meta.data[0].x;
             centerY = meta.data[0].y;
         } else {
@@ -2764,6 +2772,7 @@ window.deleteRecurringExpense = function(id) {
     renderRecurringList();
     updateDashboard();
     updateBudgetTrendChart();
+    updateRecurringTrendChart();
     showToast('固定費設定を削除しました。', 'info');
 };
 
