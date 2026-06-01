@@ -758,7 +758,15 @@ select {
   background: var(--bg-inset);
   border: 1px solid var(--card-border);
   border-radius: var(--radius-sm);
-  padding: 6px 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.dashboard-category-budget-row:hover {
+  border-color: var(--card-border-glow);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), var(--glow-primary);
+  transform: translateY(-1px);
 }
 
 .dashboard-category-budget-info {
@@ -1875,6 +1883,10 @@ select {
   .logo {
     font-size: 1.6rem;
     justify-content: center;
+  }
+  
+  #themeToggleBtn {
+    margin: 0 auto;
   }
   
   .header-actions {

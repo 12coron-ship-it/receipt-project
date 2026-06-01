@@ -988,6 +988,8 @@ function renderCategoryBudgetList(monthlyTxns, activeBudget) {
             
             const row = document.createElement('div');
             row.className = 'dashboard-category-budget-row';
+            row.style.cursor = 'pointer';
+            row.addEventListener('click', () => showCategoryItems(key));
             row.innerHTML = `
                 <div class="dashboard-category-budget-info">
                     <span class="cat-label-indicator">
