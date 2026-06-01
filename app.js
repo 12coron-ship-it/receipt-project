@@ -39,8 +39,8 @@ let categoryDoughnutCharts = [];
 let trendChartInstance = null;
 let budgetTrendChartInstance = null;
 let recurringTrendChartInstance = null;
-let analyticsTableSortKey = 'spent';
-let analyticsTableSortOrder = 'desc';
+let analyticsTableSortKey = 'category';
+let analyticsTableSortOrder = 'asc';
 
 function getJSTCurrentDate() {
     const now = new Date();
@@ -150,17 +150,15 @@ document.addEventListener('DOMContentLoaded', () => {
         // Render initial view
         updateDashboard();
         
-        // 予算推移・固定費推移の開始年月インプットの初期値を設定
-        const trendStartInput = el('budgetTrendStartMonth');
+        // 年月選択セレクトボックスの初期化
         const y = currentMonth.getFullYear();
         const m = String(currentMonth.getMonth() + 1).padStart(2, '0');
-        if (trendStartInput) {
-            trendStartInput.value = `${y}-${m}`;
-        }
-        const recTrendStartInput = el('recurringTrendStartMonth');
-        if (recTrendStartInput) {
-            recTrendStartInput.value = `${y}-${m}`;
-        }
+        
+        populateYearMonthSelects('budgetStartYear', 'budgetStartMonth', y, m);
+        populateYearMonthSelects('budgetEndYear', 'budgetEndMonth', y, m);
+        populateYearMonthSelects('budgetTrendStartYear', 'budgetTrendStartMonth', y, m);
+        populateYearMonthSelects('recurringTrendStartYear', 'recurringTrendStartMonth', y, m);
+        
         updateBudgetTrendChart();
         updateRecurringTrendChart();
         
@@ -414,8 +412,15 @@ function loadData() {
     // Transactions
     try {
         const txnData = localStorage.getItem('receipt_transactions');
-        transactions = txnData ? JSON.parse(txnData) : [];
-        if (!Array.isArray(transactions)) transactions = [];
+        const loadedTxns = txnData ? JSON.parse(txnData) : [];
+        transactions = [];
+        if (Array.isArray(loadedTxns)) {
+            loadedTxns.forEach(t => {
+                if (t && typeof t.date === 'string' && typeof t.total === 'number') {
+                    transactions.push(t);
+                }
+            });
+        }
     } catch (err) {
         console.error("Failed to parse transactions:", err);
         transactions = [];
@@ -436,21 +441,28 @@ function loadData() {
     let migrated = false;
     budgets = [];
     loadedBudgets.forEach(b => {
-        if (b && b.categories && typeof b.categories === 'object') {
+        if (!b) return;
+        if (b.categories && typeof b.categories === 'object') {
             Object.entries(b.categories).forEach(([cat, amount]) => {
-                if (amount > 0) {
+                if (amount > 0 && typeof b.startDate === 'string' && typeof b.endDate === 'string') {
                     budgets.push({
                         id: 'bgt-' + Date.now().toString() + '-' + Math.random().toString(36).substr(2, 4),
                         category: cat,
-                        amount: amount,
+                        amount: Number(amount),
                         startDate: b.startDate,
                         endDate: b.endDate
                     });
                 }
             });
             migrated = true;
-        } else if (b && b.category && b.amount) {
-            budgets.push(b);
+        } else if (b.category && b.amount && typeof b.startDate === 'string' && typeof b.endDate === 'string') {
+            budgets.push({
+                id: b.id || 'bgt-' + Date.now().toString() + '-' + Math.random().toString(36).substr(2, 4),
+                category: b.category,
+                amount: Number(b.amount),
+                startDate: b.startDate,
+                endDate: b.endDate
+            });
         }
     });
     if (migrated) {
@@ -458,14 +470,30 @@ function loadData() {
     }
     
     // Recurring Costs
+    let loadedRecurring = [];
     try {
         const recurData = localStorage.getItem('receipt_recurring');
-        recurringExpenses = recurData ? JSON.parse(recurData) : [];
-        if (!Array.isArray(recurringExpenses)) recurringExpenses = [];
+        loadedRecurring = recurData ? JSON.parse(recurData) : [];
+        if (!Array.isArray(loadedRecurring)) loadedRecurring = [];
     } catch (err) {
         console.error("Failed to parse recurring expenses:", err);
-        recurringExpenses = [];
+        loadedRecurring = [];
     }
+    
+    recurringExpenses = [];
+    loadedRecurring.forEach(r => {
+        if (r && r.name && r.amount && r.category && typeof r.startDate === 'string') {
+            recurringExpenses.push({
+                id: r.id || 'rec-' + Date.now().toString() + '-' + Math.random().toString(36).substr(2, 4),
+                name: r.name,
+                amount: Number(r.amount),
+                category: r.category,
+                startDate: r.startDate,
+                endDate: typeof r.endDate === 'string' ? r.endDate : '',
+                frequency: typeof r.frequency === 'string' ? r.frequency : '1'
+            });
+        }
+    });
 }
 
 function saveData(key) {
@@ -595,8 +623,10 @@ function initTabNavigation() {
             } else if (selectedTab === 'budgets') {
                 renderBudgetsList();
                 renderRecurringList();
-                updateBudgetTrendChart();
-                updateRecurringTrendChart();
+                setTimeout(() => {
+                    updateBudgetTrendChart();
+                    updateRecurringTrendChart();
+                }, 50);
             } else if (selectedTab === 'dashboard') {
                 updateDashboard();
             }
@@ -618,11 +648,12 @@ function initSwipeNavigation() {
     document.addEventListener('touchstart', (e) => {
         // モーダル表示中、カメラ起動中、および入力フォーカス中や入力系要素の操作中は誤作動防止のためスワイプを無効化
         const targetTagName = e.target.tagName;
+        const activeElTagName = document.activeElement ? document.activeElement.tagName : '';
         if (document.querySelector('.modal-overlay.active') || 
             document.querySelector('.camera-view-overlay.active') ||
-            document.activeElement.tagName === 'INPUT' || 
-            document.activeElement.tagName === 'SELECT' || 
-            document.activeElement.tagName === 'TEXTAREA' ||
+            activeElTagName === 'INPUT' || 
+            activeElTagName === 'SELECT' || 
+            activeElTagName === 'TEXTAREA' ||
             targetTagName === 'INPUT' ||
             targetTagName === 'SELECT' ||
             targetTagName === 'TEXTAREA' ||
@@ -649,11 +680,12 @@ function initSwipeNavigation() {
 
     document.addEventListener('touchend', (e) => {
         const targetTagName = e.target.tagName;
+        const activeElTagName = document.activeElement ? document.activeElement.tagName : '';
         if (document.querySelector('.modal-overlay.active') || 
             document.querySelector('.camera-view-overlay.active') ||
-            document.activeElement.tagName === 'INPUT' || 
-            document.activeElement.tagName === 'SELECT' || 
-            document.activeElement.tagName === 'TEXTAREA' ||
+            activeElTagName === 'INPUT' || 
+            activeElTagName === 'SELECT' || 
+            activeElTagName === 'TEXTAREA' ||
             targetTagName === 'INPUT' ||
             targetTagName === 'SELECT' ||
             targetTagName === 'TEXTAREA' ||
@@ -954,6 +986,34 @@ function buildRecurringCategorySelect() {
     });
 }
 
+function populateYearMonthSelects(yearId, monthId, defaultYear, defaultMonth) {
+    const yearSelect = el(yearId);
+    const monthSelect = el(monthId);
+    if (!yearSelect || !monthSelect) return;
+    
+    // Year options (5 years back to 4 years forward)
+    yearSelect.innerHTML = '';
+    const currentYearVal = new Date().getFullYear();
+    for (let y = currentYearVal - 5; y <= currentYearVal + 4; y++) {
+        const opt = document.createElement('option');
+        opt.value = String(y);
+        opt.textContent = `${y}年`;
+        if (y === defaultYear) opt.selected = true;
+        yearSelect.appendChild(opt);
+    }
+    
+    // Month options
+    monthSelect.innerHTML = '';
+    for (let m = 1; m <= 12; m++) {
+        const opt = document.createElement('option');
+        const val = String(m).padStart(2, '0');
+        opt.value = val;
+        opt.textContent = `${m}月`;
+        if (val === defaultMonth) opt.selected = true;
+        monthSelect.appendChild(opt);
+    }
+}
+
 function getTransactionItemsWithTax(t) {
     let itemBaseSum = 0;
     const itemsList = t.items || [];
@@ -997,7 +1057,7 @@ function getMonthlyResolvedTransactions(year, month) {
     const targetMonthStr = `${year}-${String(month).padStart(2, '0')}`;
     
     // 1. Normal transactions matching this month
-    const normalTxns = transactions.filter(t => t.date.startsWith(targetMonthStr));
+    const normalTxns = transactions.filter(t => t && typeof t.date === 'string' && t.date.startsWith(targetMonthStr));
     
     const resolvedNormal = normalTxns.map(t => {
         return {
@@ -1009,6 +1069,7 @@ function getMonthlyResolvedTransactions(year, month) {
     // 2. Inject recurring virtual transactions matching the target month range
     const virtualTxns = [];
     recurringExpenses.forEach(r => {
+        if (!r || typeof r.startDate !== 'string') return;
         const rStartMonth = r.startDate.substring(0, 7);
         const rEndMonth = r.endDate ? r.endDate.substring(0, 7) : '9999-12';
         
@@ -1080,8 +1141,10 @@ function getActiveBudgetForMonth(date) {
     Object.keys(categoryMeta).forEach(k => activeMapping[k] = 0);
     
     budgets.forEach(b => {
-        if (b.startDate <= midMonthDate && b.endDate >= midMonthDate) {
-            activeMapping[b.category] = (activeMapping[b.category] || 0) + b.amount;
+        if (b && typeof b.startDate === 'string' && typeof b.endDate === 'string') {
+            if (b.startDate <= midMonthDate && b.endDate >= midMonthDate) {
+                activeMapping[b.category] = (activeMapping[b.category] || 0) + b.amount;
+            }
         }
     });
     
@@ -2534,24 +2597,27 @@ function renderRankings(datasetTxns) {
 function saveBudgetPeriodConfig() {
     const category = el('budgetCategory').value;
     const amount = parseInt(el('budgetAmount').value) || 0;
-    const startMonth = el('budgetStartDate').value;
-    const endMonth = el('budgetEndDate').value;
+    const sy = el('budgetStartYear')?.value;
+    const sm = el('budgetStartMonth')?.value;
+    const ey = el('budgetEndYear')?.value;
+    const em = el('budgetEndMonth')?.value;
     
-    if (!category || amount <= 0 || !startMonth || !endMonth) {
+    if (!category || amount <= 0 || !sy || !sm || !ey || !em) {
         showToast('必須項目をすべて入力してください。', 'error');
         return;
     }
+    
+    const startMonth = `${sy}-${sm}`;
+    const endMonth = `${ey}-${em}`;
     
     if (startMonth > endMonth) {
         showToast('開始月は終了月より前の月を選択してください。', 'error');
         return;
     }
     
-    const [sy, sm] = startMonth.split('-');
-    const [ey, em] = endMonth.split('-');
     const startDate = `${sy}-${sm}-01`;
-    const lastDay = new Date(ey, em, 0).getDate();
-    const endDate = `${ey}-${em}-${lastDay}`;
+    const lastDay = new Date(parseInt(ey), parseInt(em), 0).getDate();
+    const endDate = `${ey}-${em}-${String(lastDay).padStart(2, '0')}`;
     
     if (editingBudgetPeriodId) {
         const index = budgets.findIndex(b => b.id === editingBudgetPeriodId);
@@ -2633,8 +2699,10 @@ window.editBudgetPeriod = function(id) {
     
     if (el('budgetCategory')) el('budgetCategory').value = b.category;
     if (el('budgetAmount')) el('budgetAmount').value = b.amount;
-    if (el('budgetStartDate')) el('budgetStartDate').value = b.startDate.substring(0, 7);
-    if (el('budgetEndDate')) el('budgetEndDate').value = b.endDate.substring(0, 7);
+    if (el('budgetStartYear')) el('budgetStartYear').value = b.startDate.substring(0, 4);
+    if (el('budgetStartMonth')) el('budgetStartMonth').value = b.startDate.substring(5, 7);
+    if (el('budgetEndYear')) el('budgetEndYear').value = b.endDate.substring(0, 4);
+    if (el('budgetEndMonth')) el('budgetEndMonth').value = b.endDate.substring(5, 7);
     
     if (el('budgetCategory')) el('budgetCategory').scrollIntoView({ behavior: 'smooth', block: 'center' });
     if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -2655,8 +2723,12 @@ function resetBudgetConfigForm() {
     if (el('budgetFormTitle')) el('budgetFormTitle').innerHTML = '<i data-lucide="plus-circle" style="color:var(--accent);"></i> カテゴリ別予算の新規作成';
     if (el('budgetCategory')) el('budgetCategory').value = '';
     if (el('budgetAmount')) el('budgetAmount').value = '';
-    if (el('budgetStartDate')) el('budgetStartDate').value = '';
-    if (el('budgetEndDate')) el('budgetEndDate').value = '';
+    const y = currentMonth.getFullYear();
+    const m = String(currentMonth.getMonth() + 1).padStart(2, '0');
+    if (el('budgetStartYear')) el('budgetStartYear').value = String(y);
+    if (el('budgetStartMonth')) el('budgetStartMonth').value = m;
+    if (el('budgetEndYear')) el('budgetEndYear').value = String(y);
+    if (el('budgetEndMonth')) el('budgetEndMonth').value = m;
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
@@ -3147,6 +3219,9 @@ function setupEventListeners() {
     }
     
     // 12. Budget Trend Start Month Selector Change Event
+    if (el('budgetTrendStartYear')) {
+        el('budgetTrendStartYear').addEventListener('change', updateBudgetTrendChart);
+    }
     if (el('budgetTrendStartMonth')) {
         el('budgetTrendStartMonth').addEventListener('change', updateBudgetTrendChart);
     }
@@ -3155,6 +3230,9 @@ function setupEventListeners() {
     }
     if (el('budgetChartType')) {
         el('budgetChartType').addEventListener('change', updateBudgetTrendChart);
+    }
+    if (el('recurringTrendStartYear')) {
+        el('recurringTrendStartYear').addEventListener('change', updateRecurringTrendChart);
     }
     if (el('recurringTrendStartMonth')) {
         el('recurringTrendStartMonth').addEventListener('change', updateRecurringTrendChart);
@@ -3220,14 +3298,15 @@ function updateBudgetTrendChart() {
     
     // 開始年月の取得
     let startDate = currentMonth; // デフォルトは現在の表示月
-    const startInput = el('budgetTrendStartMonth');
-    if (startInput && startInput.value) {
-        const [sy, sm] = startInput.value.split('-');
-        startDate = new Date(parseInt(sy), parseInt(sm) - 1, 15);
-    } else if (startInput) {
+    const startYearSel = el('budgetTrendStartYear');
+    const startMonthSel = el('budgetTrendStartMonth');
+    if (startYearSel && startYearSel.value && startMonthSel && startMonthSel.value) {
+        startDate = new Date(parseInt(startYearSel.value), parseInt(startMonthSel.value) - 1, 15);
+    } else if (startYearSel && startMonthSel) {
         const y = currentMonth.getFullYear();
         const m = String(currentMonth.getMonth() + 1).padStart(2, '0');
-        startInput.value = `${y}-${m}`;
+        startYearSel.value = String(y);
+        startMonthSel.value = m;
     }
     
     const startYear = startDate.getFullYear();
@@ -3254,7 +3333,7 @@ function updateBudgetTrendChart() {
     const catFilter = el('budgetTrendCategoryFilter')?.value || 'all';
     
     let datasets = [];
-    const catKeys = Object.keys(categoryMeta);
+    const catKeys = Object.keys(categoryMeta).reverse();
     let isStacked = true;
     
     if (catFilter === 'all') {
@@ -3303,7 +3382,7 @@ function updateBudgetTrendChart() {
             
             let recSum = 0;
             recurringExpenses.forEach(r => {
-                if (r.category === catFilter) {
+                if (r && typeof r.startDate === 'string' && r.category === catFilter) {
                     const rStart = r.startDate.substring(0, 7);
                     const rEnd = r.endDate ? r.endDate.substring(0, 7) : '9999-12';
                     if (targetMonthStr >= rStart && targetMonthStr <= rEnd) {
@@ -3421,14 +3500,15 @@ function updateRecurringTrendChart() {
     
     // 開始年月の取得
     let startDate = currentMonth;
-    const startInput = el('recurringTrendStartMonth');
-    if (startInput && startInput.value) {
-        const [sy, sm] = startInput.value.split('-');
-        startDate = new Date(parseInt(sy), parseInt(sm) - 1, 15);
-    } else if (startInput) {
+    const startYearSel = el('recurringTrendStartYear');
+    const startMonthSel = el('recurringTrendStartMonth');
+    if (startYearSel && startYearSel.value && startMonthSel && startMonthSel.value) {
+        startDate = new Date(parseInt(startYearSel.value), parseInt(startMonthSel.value) - 1, 15);
+    } else if (startYearSel && startMonthSel) {
         const y = currentMonth.getFullYear();
         const m = String(currentMonth.getMonth() + 1).padStart(2, '0');
-        startInput.value = `${y}-${m}`;
+        startYearSel.value = String(y);
+        startMonthSel.value = m;
     }
     
     const startYear = startDate.getFullYear();
@@ -3453,7 +3533,7 @@ function updateRecurringTrendChart() {
     const chartType = el('recurringChartType')?.value || 'bar';
     
     const datasets = [];
-    const catKeys = Object.keys(categoryMeta);
+    const catKeys = Object.keys(categoryMeta).reverse();
     
     catKeys.forEach(k => {
         datasets.push({
@@ -3475,9 +3555,10 @@ function updateRecurringTrendChart() {
         const targetMonthStr = `${y}-${String(m).padStart(2, '0')}`;
         
         recurringExpenses.forEach(r => {
-            const catIdx = catKeys.indexOf(r.category);
-            if (catIdx > -1) {
-                const rStart = r.startDate.substring(0, 7);
+            if (r && typeof r.startDate === 'string') {
+                const catIdx = catKeys.indexOf(r.category);
+                if (catIdx > -1) {
+                    const rStart = r.startDate.substring(0, 7);
                 const rEnd = r.endDate ? r.endDate.substring(0, 7) : '9999-12';
                 
                 if (targetMonthStr >= rStart && targetMonthStr <= rEnd) {
@@ -3505,8 +3586,9 @@ function updateRecurringTrendChart() {
                     }
                 }
             }
-        });
+        }
     });
+});
     
     // Filter out empty datasets (value is 0 for all months)
     datasets = datasets.filter(ds => ds.data.some(v => v > 0));
