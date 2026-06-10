@@ -433,6 +433,12 @@
         ※ キーがない状態でも、ダミーのデモデータで動作検証が可能です。<br>
         <a href="https://aistudio.google.com/" target="_blank">Google AI Studio で無料のAPIキーを取得する</a>
       </p>
+      <div style="display: flex; align-items: center; gap: 8px; margin-top: 12px; background: rgba(217, 119, 6, 0.05); padding: 8px; border-radius: var(--radius-sm); border: 1px dashed rgba(217, 119, 6, 0.2);">
+        <input type="checkbox" id="enableDemoModeCheckbox" style="width: auto; height: 16px; margin: 0; cursor: pointer;">
+        <label for="enableDemoModeCheckbox" style="margin-bottom: 0; font-size: 11px; color: var(--text-muted); cursor: pointer; user-select: none;">
+          APIキーが未設定のときに、ダミーデータでのデモ登録を許可する
+        </label>
+      </div>
     </div>
     <!-- データ管理セクション -->
     <div class="form-group mb-20" style="border-top: 1px solid rgba(255,255,255,0.08); padding-top: 15px;">
@@ -578,6 +584,6 @@
 <div class="toast-container" id="toastContainer"></div>
 
 <!-- Custom Javascript -->
-<script src="app.js?v=20260601-2233"></script>
+<script src="app.js?v=20260608-2105"></script>
 </body>
 </html>

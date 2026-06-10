@@ -67,6 +67,7 @@ let analyticsPeriod = 'month'; // 'month' | 'quarter' | 'year'
 let cameraStream = null;
 let capturedImages = [];
 let apiKey = '';
+let enableDemoMode = false;
 
 // Active state for editing
 let editingTransactionId = null;
@@ -173,12 +174,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // 4. Data Storage Access
 function loadSettings() {
-    apiKey = localStorage.getItem('gemini_api_key') || '';
+    try {
+        apiKey = localStorage.getItem('gemini_api_key') || '';
+    } catch (e) {
+        console.warn('localStorage access failed while loading settings:', e);
+        apiKey = '';
+    }
     if (el('apiKeyInput')) el('apiKeyInput').value = apiKey;
+    
+    // Load demo mode state
+    try {
+        enableDemoMode = localStorage.getItem('smartreceipt_demo_mode') === 'true';
+    } catch (e) {
+        enableDemoMode = false;
+    }
+    if (el('enableDemoModeCheckbox')) el('enableDemoModeCheckbox').checked = enableDemoMode;
+    
     updateApiKeyStatus();
     
     // Load theme setting
-    const currentTheme = localStorage.getItem('smartreceipt_theme') || 'dark';
+    let currentTheme = 'dark';
+    try {
+        currentTheme = localStorage.getItem('smartreceipt_theme') || 'dark';
+    } catch (e) {
+        console.warn('localStorage access failed while loading theme:', e);
+    }
     applyTheme(currentTheme);
 }
 
@@ -536,14 +556,47 @@ function showToast(message, type = 'info') {
 // 6. API Status Display & Toggle settings
 function updateApiKeyStatus() {
     const statusBadge = el('apiKeyStatus');
-    if (!statusBadge) return;
-    if (apiKey) {
-        statusBadge.className = 'api-key-badge connected';
-        statusBadge.innerHTML = '<i data-lucide="check-circle"></i> AI解析有効中';
-    } else {
-        statusBadge.className = 'api-key-badge disconnected';
-        statusBadge.innerHTML = '<i data-lucide="info"></i> デモモード';
+    const dropzone = el('dropzone');
+    
+    if (statusBadge) {
+        if (apiKey) {
+            statusBadge.className = 'api-key-badge connected';
+            statusBadge.innerHTML = '<i data-lucide="check-circle"></i> AI解析有効中';
+        } else if (enableDemoMode) {
+            statusBadge.className = 'api-key-badge disconnected';
+            statusBadge.innerHTML = '<i data-lucide="info"></i> デモモード有効';
+        } else {
+            statusBadge.className = 'api-key-badge disconnected';
+            statusBadge.innerHTML = '<i data-lucide="alert-triangle"></i> API未設定 (スキャン不可)';
+        }
     }
+    
+    if (dropzone) {
+        const titleEl = dropzone.querySelector('h3');
+        const descEl = dropzone.querySelector('p');
+        const iconEl = dropzone.querySelector('.upload-icon');
+        
+        if (apiKey) {
+            dropzone.style.borderColor = 'rgba(99, 102, 241, 0.4)';
+            dropzone.style.background = 'rgba(99, 102, 241, 0.02)';
+            if (titleEl) titleEl.textContent = 'レシートをスキャン (AI解析有効中)';
+            if (descEl) descEl.textContent = '画像を複数選択・ドラッグ＆ドロップ（一括解析に対応）';
+            if (iconEl) iconEl.style.color = 'var(--primary)';
+        } else if (enableDemoMode) {
+            dropzone.style.borderColor = 'rgba(217, 119, 6, 0.4)';
+            dropzone.style.background = 'rgba(217, 119, 6, 0.02)';
+            if (titleEl) titleEl.textContent = 'デモ用レシートを登録 (デモモード中)';
+            if (descEl) descEl.textContent = '画像をアップロードするとダミーのレシートが登録されます';
+            if (iconEl) iconEl.style.color = '#D97706';
+        } else {
+            dropzone.style.borderColor = 'rgba(239, 68, 68, 0.2)';
+            dropzone.style.background = 'rgba(239, 68, 68, 0.01)';
+            if (titleEl) titleEl.textContent = 'レシートスキャン不可 (APIキー未設定)';
+            if (descEl) descEl.textContent = '設定からGemini APIキーを入力してスキャンを有効にしてください';
+            if (iconEl) iconEl.style.color = 'var(--text-muted)';
+        }
+    }
+    
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
     }
@@ -551,8 +604,22 @@ function updateApiKeyStatus() {
 
 function saveApiKey() {
     const inputVal = el('apiKeyInput').value.trim();
-    localStorage.setItem('gemini_api_key', inputVal);
+    try {
+        localStorage.setItem('gemini_api_key', inputVal);
+    } catch (e) {
+        console.error('Failed to save API key to localStorage:', e);
+        showToast('ブラウザ設定によりキーを永続保存できませんでした。', 'error');
+    }
     apiKey = inputVal;
+    
+    // Save demo mode
+    if (el('enableDemoModeCheckbox')) {
+        enableDemoMode = el('enableDemoModeCheckbox').checked;
+        try {
+            localStorage.setItem('smartreceipt_demo_mode', enableDemoMode ? 'true' : 'false');
+        } catch (e) {}
+    }
+    
     updateApiKeyStatus();
     closeModal('settingsModal');
     showToast('APIキーを保存しました。', 'success');
@@ -560,11 +627,16 @@ function saveApiKey() {
 
 function clearApiKey() {
     localStorage.removeItem('gemini_api_key');
+    try {
+        localStorage.removeItem('smartreceipt_demo_mode');
+    } catch (e) {}
     apiKey = '';
-    el('apiKeyInput').value = '';
+    enableDemoMode = false;
+    if (el('apiKeyInput')) el('apiKeyInput').value = '';
+    if (el('enableDemoModeCheckbox')) el('enableDemoModeCheckbox').checked = false;
     updateApiKeyStatus();
     closeModal('settingsModal');
-    showToast('APIキーを削除しました。デモモードに戻ります。', 'info');
+    showToast('APIキーを削除しました。デモモードは無効です。', 'info');
 }
 
 // 7. Modals Control System (Active Class Only)
@@ -1732,7 +1804,117 @@ function handleFileUpload(e) {
     e.target.value = '';
 }
 
+}
+
+function combineImages(imagesList) {
+    return new Promise((resolve, reject) => {
+        if (imagesList.length === 0) {
+            resolve(null);
+            return;
+        }
+        if (imagesList.length === 1) {
+            resolve(imagesList[0]);
+            return;
+        }
+
+        const loadedImages = [];
+        let loadedCount = 0;
+
+        const onLoad = () => {
+            const canvas = document.createElement('canvas');
+            const gap = 15;
+            const maxWidth = 1200;
+            let totalHeight = 0;
+            const scaledDimensions = [];
+
+            loadedImages.forEach(img => {
+                let w = img.width;
+                let h = img.height;
+                if (w > maxWidth) {
+                    h = Math.round((h * maxWidth) / w);
+                    w = maxWidth;
+                }
+                scaledDimensions.push({ w, h });
+                totalHeight += h;
+            });
+
+            totalHeight += gap * (loadedImages.length - 1);
+
+            canvas.width = maxWidth;
+            canvas.height = totalHeight;
+
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            let currentY = 0;
+            loadedImages.forEach((img, idx) => {
+                const { w, h } = scaledDimensions[idx];
+                const x = Math.round((maxWidth - w) / 2);
+                
+                if (idx > 0) {
+                    ctx.strokeStyle = '#D1D5DB';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.moveTo(0, currentY - Math.round(gap / 2));
+                    ctx.lineTo(maxWidth, currentY - Math.round(gap / 2));
+                    ctx.stroke();
+                }
+
+                ctx.drawImage(img, x, currentY, w, h);
+                currentY += h + gap;
+            });
+
+            resolve(canvas.toDataURL('image/jpeg', 0.75));
+        };
+
+        imagesList.forEach((src, idx) => {
+            const img = new Image();
+            img.onload = () => {
+                loadedImages[idx] = img;
+                loadedCount++;
+                if (loadedCount === imagesList.length) {
+                    onLoad();
+                }
+            };
+            img.onerror = () => {
+                loadedCount++;
+                if (loadedCount === imagesList.length) {
+                    onLoad();
+                }
+            };
+
+            if (src instanceof File) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    img.src = reader.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(src);
+            } else {
+                img.src = src; // Base64 dataURL
+            }
+        });
+    });
+}
+
 async function processSingleReceipt(file) {
+    if (!apiKey) {
+        if (!enableDemoMode) {
+            showToast('APIキーが設定されていません。右上の「設定」からAPIキーを入力してください。', 'error');
+            if (el('fileInput')) el('fileInput').value = '';
+            return;
+        }
+        const confirmDemo = confirm(
+            "現在デモモード（APIキー未設定）です。\n" +
+            "デモ用のダミーデータを登録しますか？\n\n" +
+            "※実際のレシート解析を行うには、画面右上の「設定」からGemini APIキーを設定してください。"
+        );
+        if (!confirmDemo) {
+            if (el('fileInput')) el('fileInput').value = '';
+            return;
+        }
+    }
     try {
         const base64 = await convertFileToBase64(file);
         
@@ -1741,7 +1923,11 @@ async function processSingleReceipt(file) {
         if (el('scannedImage')) el('scannedImage').src = base64;
         
         // Process AI / Mock
-        const res = await callScanApi(base64.split(',')[1], file.type);
+        const apiRes = await callScanApi(base64.split(',')[1], file.type);
+        const res = (apiRes && apiRes.receipts && apiRes.receipts.length) ? apiRes.receipts[0] : null;
+        if (!res) {
+            throw new Error('解析結果が空です。');
+        }
         
         // Fill editor
         showDashboardSubpanel('editorPanel');
@@ -1762,57 +1948,151 @@ async function processSingleReceipt(file) {
         }
     } catch (err) {
         console.error(err);
-        showToast('スキャンエラーが発生しました。', 'error');
+        showToast(`解析エラー: ${err.message || 'エラーにより登録できませんでした。'}`, 'error');
         showDashboardSubpanel('dropzone');
     }
 }
 
 async function processMultipleReceipts(files) {
-    showDashboardSubpanel('bulkProgressContainer');
-    let successCount = 0;
-    
-    for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        if (el('bulkProgressText')) {
-            el('bulkProgressText').textContent = `処理中: ${i + 1} / ${files.length} (${file.name})`;
+    if (!apiKey) {
+        if (!enableDemoMode) {
+            showToast('APIキーが設定されていません。右上の「設定」からAPIキーを入力してください。', 'error');
+            if (el('fileInput')) el('fileInput').value = '';
+            return;
         }
-        if (el('bulkProgressBar')) {
-            el('bulkProgressBar').style.width = `${((i) / files.length) * 100}%`;
-        }
-        
-        try {
-            const base64 = await convertFileToBase64(file);
-            const res = await callScanApi(base64.split(',')[1], file.type);
-            
-            transactions.push({
-                id: 'txn-' + Date.now().toString() + '-' + i,
-                storeName: res.storeName || '不明な店舗',
-                date: res.date || new Date().toISOString().split('T')[0],
-                total: res.total || 0,
-                items: res.items && res.items.length ? res.items : [{ name: 'まとめ支出', price: res.total || 0, category: 'others' }]
-            });
-            successCount++;
-        } catch (err) {
-            console.error('Batch scanning single error: ', err);
+        const confirmDemo = confirm(
+            `現在デモモード（APIキー未設定）です。\n` +
+            `選択された ${files.length} 件の画像に対し、デモ用のダミーデータを登録しますか？\n\n` +
+            `※実際のレシート解析を行うには、画面右上の「設定」からGemini APIキーを設定してください。`
+        );
+        if (!confirmDemo) {
+            if (el('fileInput')) el('fileInput').value = '';
+            return;
         }
     }
+    showDashboardSubpanel('bulkProgressContainer');
     
-    if (el('bulkProgressBar')) el('bulkProgressBar').style.width = '100%';
+    const maxBatchSize = 5;
+    let successCount = 0;
     
-    setTimeout(() => {
-        saveData('transactions');
+    const batches = [];
+    for (let i = 0; i < files.length; i += maxBatchSize) {
+        batches.push(files.slice(i, i + maxBatchSize));
+    }
+    
+    try {
+        for (let b = 0; b < batches.length; b++) {
+            const batchFiles = batches[b];
+            
+            if (el('bulkProgressText')) {
+                el('bulkProgressText').textContent = `バッチ ${b + 1}/${batches.length}: ${batchFiles.length}枚の画像を結合中...`;
+            }
+            if (el('bulkProgressBar')) {
+                el('bulkProgressBar').style.width = `${(b / batches.length) * 100}%`;
+            }
+            
+            const combinedDataUrl = await combineImages(batchFiles);
+            
+            if (el('bulkProgressText')) {
+                el('bulkProgressText').textContent = `バッチ ${b + 1}/${batches.length}: AI解析中...`;
+            }
+            if (el('bulkProgressBar')) {
+                el('bulkProgressBar').style.width = `${((b + 0.5) / batches.length) * 100}%`;
+            }
+            
+            const apiRes = await callScanApi(combinedDataUrl.split(',')[1], 'image/jpeg');
+            
+            if (apiRes && apiRes.receipts && apiRes.receipts.length) {
+                apiRes.receipts.forEach((res, i) => {
+                    transactions.push({
+                        id: 'txn-' + Date.now().toString() + '-' + b + '-' + i + '-' + Math.floor(Math.random() * 1000),
+                        storeName: res.storeName || '不明な店舗',
+                        date: res.date || new Date().toISOString().split('T')[0],
+                        total: res.total || 0,
+                        items: res.items && res.items.length ? res.items : [{ name: 'まとめ支出', price: res.total || 0, category: 'others' }]
+                    });
+                    successCount++;
+                });
+            }
+        }
+        
+        if (el('bulkProgressBar')) el('bulkProgressBar').style.width = '100%';
+        if (el('bulkProgressText')) el('bulkProgressText').textContent = 'すべての処理が完了しました！';
+        
+        setTimeout(() => {
+            saveData('transactions');
+            showDashboardSubpanel('dropzone');
+            updateDashboard();
+            showToast(`${successCount} 枚のレシートを一括登録しました。`, 'success');
+        }, 1000);
+        
+    } catch (err) {
+        console.error('Batch scanning error: ', err);
+        showToast(`一括解析エラー: ${err.message || 'エラーにより登録できませんでした。'}`, 'error');
         showDashboardSubpanel('dropzone');
-        updateDashboard();
-        showToast(`${successCount} 枚のレシートを一括登録しました。`, 'success');
-    }, 1000);
+    }
 }
 
 function convertFileToBase64(file) {
     return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
+        // 画像ファイルの場合、自動でリサイズ＆圧縮して容量を劇的に削減
+        if (file.type.startsWith('image/')) {
+            const img = new Image();
+            img.src = URL.createObjectURL(file);
+            img.onload = () => {
+                URL.revokeObjectURL(img.src);
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                const maxWidth = 1200;
+                const maxHeight = 1200;
+                
+                if (width > height) {
+                    if (width > maxWidth) {
+                        height = Math.round((height * maxWidth) / width);
+                        width = maxWidth;
+                    }
+                } else {
+                    if (height > maxHeight) {
+                        width = Math.round((width * maxHeight) / height);
+                        height = maxHeight;
+                    }
+                }
+                
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                canvas.toBlob((blob) => {
+                    if (blob) {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(blob);
+                    } else {
+                        // Blob生成失敗時のフォールバック（オリジナルを送信）
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(file);
+                    }
+                }, 'image/jpeg', 0.75);
+            };
+            img.onerror = () => {
+                // 画像読み込み失敗時のフォールバック（オリジナルを送信）
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            };
+        } else {
+            // 画像以外はそのまま
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        }
     });
 }
 
@@ -1829,73 +2109,117 @@ async function callScanApi(base64Data, mimeType) {
     const schema = {
         type: "OBJECT",
         properties: {
-            storeName: { type: "STRING" },
-            date: { type: "STRING", description: "YYYY-MM-DD format" },
-            tax: { type: "INTEGER", description: "Receipt-wide tax if computed collectively at the end, otherwise 0" },
-            total: { type: "INTEGER" },
-            items: {
+            receipts: {
                 type: "ARRAY",
+                description: "Array of parsed receipts. If there is only one receipt, return it as a single item in this array.",
                 items: {
                     type: "OBJECT",
                     properties: {
-                        name: { type: "STRING" },
-                        price: { type: "INTEGER", description: "Base unit price of the item before discount" },
-                        discount: { type: "INTEGER", description: "Discount amount for this item if applicable, otherwise 0" },
-                        category: { type: "STRING", description: "Must be: food, dining, luxuries, shopping, clothing, furniture, utilities, mortgage, insurance, medical, education, transport, social, entertainment, special, or others" }
+                        storeName: { type: "STRING" },
+                        date: { type: "STRING", description: "YYYY-MM-DD format" },
+                        tax: { type: "INTEGER", description: "Receipt-wide tax if computed collectively at the end, otherwise 0" },
+                        total: { type: "INTEGER" },
+                        items: {
+                            type: "ARRAY",
+                            items: {
+                                type: "OBJECT",
+                                properties: {
+                                    name: { type: "STRING" },
+                                    price: { type: "INTEGER", description: "Base unit price of the item before discount" },
+                                    discount: { type: "INTEGER", description: "Discount amount for this item if applicable, otherwise 0" },
+                                    category: { type: "STRING", description: "Must be: food, dining, luxuries, shopping, clothing, furniture, utilities, mortgage, insurance, medical, education, transport, social, entertainment, special, or others" }
+                                },
+                                required: ["name", "price", "discount", "category"]
+                            }
+                        }
                     },
-                    required: ["name", "price", "discount", "category"]
+                    required: ["storeName", "date", "tax", "total", "items"]
                 }
             }
         },
-        required: ["storeName", "date", "tax", "total", "items"]
+        required: ["receipts"]
     };
     
-    try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [
-                        { inlineData: { mimeType: mimeType || 'image/jpeg', data: base64Data } },
-                        { text: "Extract receipt details. Analyze items and map each item to the appropriate category from the schema.\n\n" +
-                                "Category definitions:\n" +
-                                "- luxuries (嗜好品): Alcoholic beverages (beer, wine, sake, whiskey), cigarettes, sweets (candies, cakes, ice cream, chocolate, donuts), snacks, potato chips, desserts, and non-essential drinks/items.\n" +
-                                "- food (食費): Basic groceries, raw cooking ingredients (meat, fish, vegetables), bread, milk, eggs, tofu, seasonings, and daily cooking items.\n" +
-                                "- dining (外食費): Restaurant bills, cafe drinks/food, fast food, takeout lunches, food court, and dining out.\n" +
-                                "- shopping (日用品・買い物): Toilet paper, tissues, laundry detergent, shampoo, cosmetics, stationeries, trash bags, kitchen goods.\n" +
-                                "- transport (交通費): Train tickets, IC cards top-up, bus, taxi, parking fees.\n" +
-                                "- medical (健康・医療費): Medicines, hospital checkups, clinic fees, masks, vitamins.\n" +
-                                "- clothing (衣服): Apparel, shoes, accessories.\n" +
-                                "- furniture (家具・家電): Furniture, home electronics, light bulbs.\n" +
-                                "- utilities (水道光熱・通信): Electricity, gas, water, internet, phone bills.\n" +
-                                "- mortgage (住宅ローン・家賃): Rent, housing loan.\n" +
-                                "- insurance (保険料): Life, health, or car insurance.\n" +
-                                "- education (教育): Textbooks, tutoring, school supplies.\n" +
-                                "- social (交際費): Gifts, dinner with friends/co-workers, social gather expenses.\n" +
-                                "- entertainment (娯楽・趣味): Movies, games, toys, hobbies, travel, concert tickets.\n" +
-                                "- special (特別費): Taxes, large yearly insurance, car purchases.\n" +
-                                "- others (その他): Anything else that does not fit the definitions above." }
-                    ]
-                }],
-                generationConfig: {
-                    responseMimeType: 'application/json',
-                    responseSchema: schema
+    const maxRetries = 3;
+    let attempt = 0;
+    
+    while (attempt < maxRetries) {
+        attempt++;
+        try {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [
+                            { inlineData: { mimeType: mimeType || 'image/jpeg', data: base64Data } },
+                            { text: "Extract receipt details. The input image may contain one or multiple receipts separated by grey borders. Analyze each receipt separately and return them in the receipts array.\n\n" +
+                                    "Category definitions:\n" +
+                                    "- luxuries (嗜好品): Alcoholic beverages (beer, wine, sake, whiskey), cigarettes, sweets (candies, cakes, ice cream, chocolate, donuts), snacks, potato chips, desserts, and non-essential drinks/items.\n" +
+                                    "- food (食費): Basic groceries, raw cooking ingredients (meat, fish, vegetables), bread, milk, eggs, tofu, seasonings, and daily cooking items.\n" +
+                                    "- dining (外食費): Restaurant bills, cafe drinks/food, fast food, takeout lunches, food court, and dining out.\n" +
+                                    "- shopping (日用品・買い物): Toilet paper, tissues, laundry detergent, shampoo, cosmetics, stationeries, trash bags, kitchen goods.\n" +
+                                    "- transport (交通費): Train tickets, IC cards top-up, bus, taxi, parking fees.\n" +
+                                    "- medical (健康・医療費): Medicines, hospital checkups, clinic fees, masks, vitamins.\n" +
+                                    "- clothing (衣服): Apparel, shoes, accessories.\n" +
+                                    "- furniture (家具・家電): Furniture, home electronics, light bulbs.\n" +
+                                    "- utilities (水道光熱・通信): Electricity, gas, water, internet, phone bills.\n" +
+                                    "- mortgage (住宅ローン・家賃): Rent, housing loan.\n" +
+                                    "- insurance (保険料): Life, health, or car insurance.\n" +
+                                    "- education (教育): Textbooks, tutoring, school supplies.\n" +
+                                    "- social (交際費): Gifts, dinner with friends/co-workers, social gather expenses.\n" +
+                                    "- entertainment (娯楽・趣味): Movies, games, toys, hobbies, travel, concert tickets.\n" +
+                                    "- special (特別費): Taxes, large yearly insurance, car purchases.\n" +
+                                    "- others (その他): Anything else that does not fit the definitions above." }
+                        ]
+                    }],
+                    generationConfig: {
+                        responseMimeType: 'application/json',
+                        responseSchema: schema
+                    }
+                })
+            });
+            
+            const responseData = await response.json();
+            
+            if (responseData.error) {
+                const errCode = responseData.error.code;
+                const errMsg = responseData.error.message;
+                const errStatus = responseData.error.status;
+                
+                if (errCode === 429 || errStatus === 'RESOURCE_EXHAUSTED' || errCode >= 500) {
+                    if (attempt < maxRetries) {
+                        const delay = attempt * 2000;
+                        console.warn(`Gemini API temporary error (${errCode} / ${errStatus}). Retrying in ${delay}ms...`);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        continue;
+                    }
                 }
-            })
-        });
-        
-        const responseData = await response.json();
-        if (responseData.error) {
-            throw new Error(responseData.error.message);
+                throw new Error(`${errMsg} (Code: ${errCode})`);
+            }
+            
+            const responseText = responseData.candidates[0].content.parts[0].text;
+            return JSON.parse(responseText);
+            
+        } catch (err) {
+            console.error(`Gemini API attempt ${attempt} failed: `, err);
+            
+            if (attempt >= maxRetries) {
+                if (apiKey) {
+                    let hint = err.message;
+                    if (err.message.includes('429') || err.message.includes('RESOURCE_EXHAUSTED')) {
+                        hint = 'リクエスト制限に達しました。しばらく待ってから再度お試しください。';
+                    } else if (err.message.includes('400') || err.message.includes('key')) {
+                        hint = 'APIキーが無効、または期限切れの可能性があります。設定をご確認ください。';
+                    }
+                    throw new Error(hint);
+                } else {
+                    showToast('AI解析に失敗しました。デモ用のダミー値を使用します。', 'error');
+                    return getMockDataResponse();
+                }
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000));
         }
-        
-        const responseText = responseData.candidates[0].content.parts[0].text;
-        return JSON.parse(responseText);
-    } catch (err) {
-        console.error('API integration failure, fallback to Mock: ', err);
-        showToast('AI解析に失敗しました。デモ用のダミー値を使用します。', 'error');
-        return getMockDataResponse();
     }
 }
 
@@ -1921,7 +2245,7 @@ function getMockDataResponse() {
     const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 15);
     date.setDate(date.getDate() - randomDaysAgo);
     mock.date = date.toISOString().split('T')[0];
-    return mock;
+    return { receipts: [ mock ] };
 }
 
 // 20. WebRTC camera controls
@@ -2012,9 +2336,30 @@ window.removeCapturedThumb = function(index) {
 
 async function processCapturedBatches() {
     const images = [...capturedImages];
-    stopContinuousCamera();
-    
     if (images.length === 0) return;
+    
+    if (!apiKey) {
+        if (!enableDemoMode) {
+            showToast('APIキーが設定されていません。右上の「設定」からAPIキーを入力してください。', 'error');
+            stopContinuousCamera();
+            capturedImages = [];
+            updateCapturedThumbsUI();
+            return;
+        }
+        const confirmDemo = confirm(
+            `現在デモモード（APIキー未設定）です。\n` +
+            `撮影された ${images.length} 件の写真に対し、デモ用のダミーデータを登録しますか？\n\n` +
+            `※実際のレシート解析を行うには、画面右上の「設定」からGemini APIキーを設定してください。`
+        );
+        if (!confirmDemo) {
+            stopContinuousCamera();
+            capturedImages = [];
+            updateCapturedThumbsUI();
+            return;
+        }
+    }
+    
+    stopContinuousCamera();
     
     if (images.length === 1) {
         // Show scan overlay single
@@ -2022,7 +2367,10 @@ async function processCapturedBatches() {
         if (el('scannedImage')) el('scannedImage').src = images[0];
         
         try {
-            const res = await callScanApi(images[0].split(',')[1], 'image/jpeg');
+            const apiRes = await callScanApi(images[0].split(',')[1], 'image/jpeg');
+            const res = (apiRes && apiRes.receipts && apiRes.receipts.length) ? apiRes.receipts[0] : null;
+            if (!res) throw new Error('解析結果が空です。');
+
             showDashboardSubpanel('editorPanel');
             if (el('editorTitle')) el('editorTitle').innerHTML = '<i data-lucide="edit-3" style="color:var(--primary)"></i> 撮影結果の確認';
             if (el('receiptStore')) el('receiptStore').value = res.storeName || '';
@@ -2036,37 +2384,70 @@ async function processCapturedBatches() {
                 res.items.forEach(item => addEditorItemRow(item.name, item.price, item.discount || 0, item.category));
             }
         } catch (e) {
+            showToast(`解析エラー: ${e.message || 'エラーにより登録できませんでした。'}`, 'error');
             showDashboardSubpanel('dropzone');
         }
     } else {
         // Bulk progress overlay
         showDashboardSubpanel('bulkProgressContainer');
-        let success = 0;
         
-        for (let i = 0; i < images.length; i++) {
-            if (el('bulkProgressText')) el('bulkProgressText').textContent = `処理中: ${i + 1} / ${images.length}`;
-            if (el('bulkProgressBar')) el('bulkProgressBar').style.width = `${((i) / images.length) * 100}%`;
-            
-            try {
-                const res = await callScanApi(images[i].split(',')[1], 'image/jpeg');
-                transactions.push({
-                    id: 'txn-' + Date.now().toString() + '-' + i,
-                    storeName: res.storeName || '不明な店舗',
-                    date: res.date || new Date().toISOString().split('T')[0],
-                    total: res.total || 0,
-                    items: res.items && res.items.length ? res.items : [{ name: 'まとめ支出', price: res.total || 0, category: 'others' }]
-                });
-                success++;
-            } catch (err) {}
+        const maxBatchSize = 5;
+        const batches = [];
+        for (let i = 0; i < images.length; i += maxBatchSize) {
+            batches.push(images.slice(i, i + maxBatchSize));
         }
         
-        if (el('bulkProgressBar')) el('bulkProgressBar').style.width = '100%';
-        setTimeout(() => {
-            saveData('transactions');
+        try {
+            let success = 0;
+            for (let b = 0; b < batches.length; b++) {
+                const batchImages = batches[b];
+                
+                if (el('bulkProgressText')) {
+                    el('bulkProgressText').textContent = `バッチ ${b + 1}/${batches.length}: ${batchImages.length}枚の画像を結合中...`;
+                }
+                if (el('bulkProgressBar')) {
+                    el('bulkProgressBar').style.width = `${(b / batches.length) * 100}%`;
+                }
+                
+                const combinedDataUrl = await combineImages(batchImages);
+                
+                if (el('bulkProgressText')) {
+                    el('bulkProgressText').textContent = `バッチ ${b + 1}/${batches.length}: AI解析中...`;
+                }
+                if (el('bulkProgressBar')) {
+                    el('bulkProgressBar').style.width = `${((b + 0.5) / batches.length) * 100}%`;
+                }
+                
+                const apiRes = await callScanApi(combinedDataUrl.split(',')[1], 'image/jpeg');
+                
+                if (apiRes && apiRes.receipts && apiRes.receipts.length) {
+                    apiRes.receipts.forEach((res, i) => {
+                        transactions.push({
+                            id: 'txn-' + Date.now().toString() + '-' + b + '-' + i + '-' + Math.floor(Math.random() * 1000),
+                            storeName: res.storeName || '不明な店舗',
+                            date: res.date || new Date().toISOString().split('T')[0],
+                            total: res.total || 0,
+                            items: res.items && res.items.length ? res.items : [{ name: 'まとめ支出', price: res.total || 0, category: 'others' }]
+                        });
+                        success++;
+                    });
+                }
+            }
+            
+            if (el('bulkProgressBar')) el('bulkProgressBar').style.width = '100%';
+            if (el('bulkProgressText')) el('bulkProgressText').textContent = 'すべての処理が完了しました！';
+            
+            setTimeout(() => {
+                saveData('transactions');
+                showDashboardSubpanel('dropzone');
+                updateDashboard();
+                showToast(`${success} 件の撮影レシートを取り込みました。`, 'success');
+            }, 1000);
+        } catch (err) {
+            console.error('Batch camera scanning error: ', err);
+            showToast(`一括解析エラー: ${err.message || 'エラーにより登録できませんでした。'}`, 'error');
             showDashboardSubpanel('dropzone');
-            updateDashboard();
-            showToast(`${success} 件の撮影レシートを取り込みました。`, 'success');
-        }, 1000);
+        }
     }
 }
 
