@@ -1804,8 +1804,6 @@ function handleFileUpload(e) {
     e.target.value = '';
 }
 
-}
-
 function combineImages(imagesList) {
     return new Promise((resolve, reject) => {
         if (imagesList.length === 0) {
